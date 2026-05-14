@@ -1,383 +1,222 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 
-// ─── Utility helpers ──────────────────────────────────────────────────────────
-const pad = (n) => String(Math.floor(n)).padStart(2, "0");
-const fmtTime = (totalSec) => {
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = Math.floor(totalSec % 60);
-  return h > 0 ? `${h}h${pad(m)}m${pad(s)}s` : `${pad(m)}m${pad(s)}s`;
+// ─── Constants ────────────────────────────────────────────────────────────────
+const C = {
+  accent: "#00E5A0", accentDim: "#00b880",
+  bg: "#0A0B0E", surface: "#111318", surface2: "#181C23",
+  border: "#1F2330", text: "#F0F2F8", muted: "#6B7080",
+  danger: "#FF5C6A", warning: "#FFB84D", info: "#4DA6FF",
+  purple: "#C084FC", pink: "#F472B6",
 };
-const paceToKmh = (paceStr) => {
-  const parts = paceStr.split(":");
+
+const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, "0");
+const fmtTime = (s) => {
+  if (!s || s < 0) return "--";
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+  return h > 0 ? `${h}h${pad(m)}m${pad(sec)}s` : `${pad(m)}m${pad(sec)}s`;
+};
+const paceToKmh = (p) => {
+  const parts = String(p).split(":");
   if (parts.length !== 2) return null;
-  const min = parseFloat(parts[0]);
-  const sec = parseFloat(parts[1]);
-  if (isNaN(min) || isNaN(sec)) return null;
-  const totalMin = min + sec / 60;
-  return 60 / totalMin;
+  const m = parseFloat(parts[0]), s = parseFloat(parts[1]);
+  if (isNaN(m) || isNaN(s)) return null;
+  return 60 / (m + s / 60);
 };
 const kmhToPace = (kmh) => {
   if (!kmh || kmh <= 0) return "--:--";
-  const secPerKm = 3600 / kmh;
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
-  return `${m}:${pad(s)}`;
+  const t = 3600 / kmh;
+  return `${Math.floor(t / 60)}:${pad(t % 60)}`;
 };
-const splitTime = (kmh, distKm) => {
+const splitTime = (kmh, dist) => {
   if (!kmh || kmh <= 0) return "--";
-  const sec = (distKm / kmh) * 3600;
-  return fmtTime(sec);
+  return fmtTime((dist / kmh) * 3600);
 };
 
-// ─── Local storage helpers ────────────────────────────────────────────────────
-const LS_KEY = "hrpl_data";
-const loadData = () => {
-  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; }
-};
-const saveData = (d) => { try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch {} };
+// ─── LocalStorage ─────────────────────────────────────────────────────────────
+const LS = "hrpl_v2";
+const load = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; } };
+const save = (d) => { try { localStorage.setItem(LS, JSON.stringify(d)); } catch {} };
 
-// ─── Default station times (seconds) for hybrid simulation ───────────────────
-const DEFAULT_STATIONS = [
-  { id: "skierg", name: "SkiErg", icon: "🎿", defaultTime: 270, dist: "1000m" },
-  { id: "sledpush", name: "Sled Push", icon: "🏋️", defaultTime: 210, dist: "50m×8" },
-  { id: "sledpull", name: "Sled Pull", icon: "💪", defaultTime: 210, dist: "50m×8" },
-  { id: "burpee", name: "Burpee Broad Jumps", icon: "🏃", defaultTime: 240, dist: "80m" },
-  { id: "rowing", name: "Rowing", icon: "🚣", defaultTime: 270, dist: "1000m" },
-  { id: "farmer", name: "Farmer Carry", icon: "🧳", defaultTime: 180, dist: "200m" },
-  { id: "sandbag", name: "Sandbag Lunges", icon: "⚡", defaultTime: 270, dist: "100m" },
-  { id: "wallballs", name: "Wall Balls", icon: "🏀", defaultTime: 240, dist: "100 reps" },
+// ─── Station data with weights ────────────────────────────────────────────────
+const STATIONS = [
+  { id: "skierg",   name: "SkiErg",            icon: "🎿", dist: "1000m",    weights: { mRx: null, fRx: null, mSc: null, fSc: null }, defaultTime: { mRx: 270, fRx: 300, mSc: 250, fSc: 280 } },
+  { id: "sledpush", name: "Sled Push",          icon: "🏋️", dist: "50m×8",   weights: { mRx: "152kg", fRx: "102kg", mSc: "102kg", fSc: "72kg" }, defaultTime: { mRx: 240, fRx: 210, mSc: 200, fSc: 180 } },
+  { id: "sledpull", name: "Sled Pull",          icon: "💪", dist: "50m×8",   weights: { mRx: "103kg", fRx: "78kg",  mSc: "78kg",  fSc: "58kg" }, defaultTime: { mRx: 210, fRx: 190, mSc: 180, fSc: 160 } },
+  { id: "burpee",   name: "Burpee Broad Jumps", icon: "🏃", dist: "80m",     weights: { mRx: null, fRx: null, mSc: null, fSc: null }, defaultTime: { mRx: 240, fRx: 220, mSc: 200, fSc: 185 } },
+  { id: "rowing",   name: "Rowing",             icon: "🚣", dist: "1000m",   weights: { mRx: null, fRx: null, mSc: null, fSc: null }, defaultTime: { mRx: 270, fRx: 290, mSc: 250, fSc: 265 } },
+  { id: "farmer",   name: "Farmer Carry",       icon: "🧳", dist: "200m",    weights: { mRx: "2×24kg", fRx: "2×16kg", mSc: "2×20kg", fSc: "2×12kg" }, defaultTime: { mRx: 180, fRx: 165, mSc: 160, fSc: 145 } },
+  { id: "sandbag",  name: "Sandbag Lunges",     icon: "⚡", dist: "100m",    weights: { mRx: "20kg", fRx: "10kg", mSc: "15kg", fSc: "10kg" }, defaultTime: { mRx: 270, fRx: 245, mSc: 240, fSc: 220 } },
+  { id: "wallball", name: "Wall Balls",         icon: "🏀", dist: "100 reps",weights: { mRx: "6kg/9ft", fRx: "4kg/9ft", mSc: "6kg/7.5ft", fSc: "4kg/7.5ft" }, defaultTime: { mRx: 240, fRx: 215, mSc: 210, fSc: 190 } },
 ];
-const RUNNING_SEGMENTS = 8; // total km of running
-
-// ─── Color palette ────────────────────────────────────────────────────────────
-const C = {
-  accent: "#00E5A0",
-  accentDim: "#00b880",
-  bg: "#0A0B0E",
-  surface: "#111318",
-  surface2: "#181C23",
-  border: "#1F2330",
-  text: "#F0F2F8",
-  muted: "#6B7080",
-  danger: "#FF5C6A",
-  warning: "#FFB84D",
-  info: "#4DA6FF",
-};
+const STATION_COLORS = ["#4DA6FF","#00E5A0","#FFB84D","#FF5C6A","#C084FC","#F472B6","#34D399","#FBBF24"];
+const CAT_KEY = { mRx: "Homme RX", fRx: "Femme RX", mSc: "Homme Scaled", fSc: "Femme Scaled" };
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const S = {
-  app: {
-    minHeight: "100vh",
-    background: C.bg,
-    color: C.text,
-    fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    position: "relative",
-  },
-  nav: {
-    background: C.surface,
-    borderBottom: `1px solid ${C.border}`,
-    padding: "0 1.5rem",
-    display: "flex",
-    alignItems: "center",
-    height: 56,
-    position: "sticky",
-    top: 0,
-    zIndex: 100,
-    gap: "1.5rem",
-  },
-  logo: {
-    fontWeight: 800,
-    fontSize: 15,
-    letterSpacing: "-0.02em",
-    color: C.accent,
-    marginRight: "auto",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  navBtn: (active) => ({
-    padding: "6px 14px",
-    borderRadius: 8,
-    border: "none",
-    background: active ? `${C.accent}18` : "transparent",
-    color: active ? C.accent : C.muted,
-    fontSize: 13,
-    fontWeight: active ? 600 : 400,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: "all 0.18s",
-    letterSpacing: "0.01em",
-  }),
-  page: {
-    maxWidth: 1100,
-    margin: "0 auto",
-    padding: "2rem 1.5rem",
-  },
-  card: {
-    background: C.surface,
-    border: `1px solid ${C.border}`,
-    borderRadius: 16,
-    padding: "1.5rem",
-    marginBottom: "1.25rem",
-  },
-  h1: {
-    fontSize: 24,
-    fontWeight: 800,
-    letterSpacing: "-0.03em",
-    marginBottom: 4,
-    color: C.text,
-  },
-  h2: {
-    fontSize: 17,
-    fontWeight: 700,
-    marginBottom: "1rem",
-    color: C.text,
-    letterSpacing: "-0.01em",
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: 600,
-    color: C.muted,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginBottom: 6,
-    display: "block",
-  },
-  input: {
-    width: "100%",
-    background: C.surface2,
-    border: `1px solid ${C.border}`,
-    borderRadius: 10,
-    padding: "10px 14px",
-    color: C.text,
-    fontSize: 15,
-    outline: "none",
-    boxSizing: "border-box",
-    transition: "border-color 0.18s",
-  },
-  btn: (variant = "primary") => ({
-    padding: "10px 22px",
-    borderRadius: 10,
-    border: "none",
-    background: variant === "primary" ? C.accent : C.surface2,
-    color: variant === "primary" ? "#000" : C.text,
-    fontWeight: 700,
-    fontSize: 13,
-    cursor: "pointer",
-    letterSpacing: "0.02em",
-    transition: "opacity 0.18s, transform 0.12s",
-  }),
-  metric: (color = C.accent) => ({
-    background: C.surface2,
-    borderRadius: 12,
-    padding: "1rem 1.25rem",
-    flex: 1,
-    minWidth: 120,
-    borderLeft: `3px solid ${color}`,
-  }),
-  metricVal: {
-    fontSize: 26,
-    fontWeight: 800,
-    letterSpacing: "-0.04em",
-    lineHeight: 1,
-    marginBottom: 4,
-  },
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: C.muted,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  grid: (cols = 2) => ({
-    display: "grid",
-    gridTemplateColumns: `repeat(${cols}, 1fr)`,
-    gap: "1rem",
-  }),
-  badge: (color = C.accent) => ({
-    display: "inline-block",
-    padding: "3px 10px",
-    borderRadius: 20,
-    background: `${color}22`,
-    color: color,
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-  }),
-  row: {
-    display: "flex",
-    gap: "1rem",
-    flexWrap: "wrap",
-    alignItems: "flex-end",
-  },
-  divider: {
-    borderTop: `1px solid ${C.border}`,
-    margin: "1.25rem 0",
-  },
-  insightBox: {
-    background: `${C.accent}10`,
-    border: `1px solid ${C.accent}30`,
-    borderRadius: 10,
-    padding: "0.75rem 1rem",
-    fontSize: 13,
-    color: C.text,
-    marginBottom: 8,
-    display: "flex",
-    gap: 8,
-    alignItems: "flex-start",
-  },
-  footer: {
-    textAlign: "center",
-    padding: "2.5rem 1rem",
-    color: C.muted,
-    fontSize: 12,
-    letterSpacing: "0.08em",
-    borderTop: `1px solid ${C.border}`,
-  },
+  app: { minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Sans','Segoe UI',sans-serif", paddingBottom: 80 },
+  topBar: { background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "0 1.25rem", display: "flex", alignItems: "center", height: 52, position: "sticky", top: 0, zIndex: 100, gap: 8 },
+  logo: { fontWeight: 800, fontSize: 14, letterSpacing: "-0.02em", color: C.accent, marginRight: "auto", display: "flex", alignItems: "center", gap: 6 },
+  bottomNav: { position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", zIndex: 100, padding: "6px 0 8px" },
+  bottomBtn: (a) => ({ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "4px 2px", background: "none", border: "none", cursor: "pointer", color: a ? C.accent : C.muted, fontSize: 9, fontWeight: a ? 700 : 400, letterSpacing: "0.06em", transition: "color 0.18s" }),
+  page: { maxWidth: 900, margin: "0 auto", padding: "1.25rem 1rem 1rem" },
+  card: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "1.25rem", marginBottom: "1rem" },
+  h1: { fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 2, color: C.text },
+  h2: { fontSize: 15, fontWeight: 700, marginBottom: "0.875rem", color: C.text, letterSpacing: "-0.01em" },
+  label: { fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5, display: "block" },
+  input: { width: "100%", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 12px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box" },
+  btn: (v = "primary") => ({ padding: "9px 18px", borderRadius: 9, border: "none", background: v === "primary" ? C.accent : v === "danger" ? `${C.danger}22` : C.surface2, color: v === "primary" ? "#000" : v === "danger" ? C.danger : C.text, fontWeight: 700, fontSize: 12, cursor: "pointer", letterSpacing: "0.04em" }),
+  metric: (color = C.accent) => ({ background: C.surface2, borderRadius: 10, padding: "0.875rem 1rem", flex: 1, minWidth: 110, borderLeft: `3px solid ${color}` }),
+  metricVal: { fontSize: 22, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1, marginBottom: 3 },
+  metricLabel: { fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em" },
+  badge: (c = C.accent) => ({ display: "inline-block", padding: "2px 8px", borderRadius: 20, background: `${c}22`, color: c, fontSize: 11, fontWeight: 700 }),
+  divider: { borderTop: `1px solid ${C.border}`, margin: "1rem 0" },
+  insight: { background: `${C.accent}10`, border: `1px solid ${C.accent}28`, borderRadius: 9, padding: "0.625rem 0.875rem", fontSize: 12, color: C.text, marginBottom: 6 },
+  grid2: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" },
 };
 
-// ─── Inline sparkline (SVG) ───────────────────────────────────────────────────
-function Sparkline({ data, color = C.accent, height = 48, width = 160 }) {
+// ─── Micro components ─────────────────────────────────────────────────────────
+function Sparkline({ data, color = C.accent, h = 52, w = 300 }) {
   if (!data || data.length < 2) return null;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * width;
-    const y = height - ((v - min) / range) * (height - 8) - 4;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+  const mn = Math.min(...data), mx = Math.max(...data), rng = mx - mn || 1;
+  const pts = data.map((v, i) =>
+    `${((i / (data.length - 1)) * w).toFixed(1)},${(h - ((v - mn) / rng) * (h - 8) - 4).toFixed(1)}`
+  ).join(" ");
+  const last = pts.split(" ").at(-1).split(",");
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
       <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={pts.split(" ").at(-1).split(",")[0]} cy={pts.split(" ").at(-1).split(",")[1]} r="3" fill={color} />
+      <circle cx={last[0]} cy={last[1]} r="3" fill={color} />
     </svg>
   );
 }
 
-// ─── Bar chart ────────────────────────────────────────────────────────────────
-function BarChart({ data, maxVal, colors, height = 140 }) {
-  const mx = maxVal || Math.max(...data.map((d) => d.value), 1);
+function Donut({ segs, size = 130 }) {
+  const total = segs.reduce((a, b) => a + b.v, 0) || 1;
+  let off = 0;
+  const r = 42, cx = 60, cy = 60, circ = 2 * Math.PI * r;
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height }}>
-      {data.map((d, i) => (
-        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>{fmtTime(d.value)}</span>
-          <div style={{
-            width: "100%",
-            height: Math.max(4, (d.value / mx) * (height - 32)),
-            background: colors?.[i] || C.accent,
-            borderRadius: "6px 6px 0 0",
-            opacity: 0.85,
-            transition: "height 0.5s cubic-bezier(.4,0,.2,1)",
-          }} />
-          <span style={{ fontSize: 9, color: C.muted, textAlign: "center", lineHeight: 1.2 }}>{d.label}</span>
-        </div>
+    <svg width={size} height={size} viewBox="0 0 120 120">
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.border} strokeWidth="13" />
+      {segs.map((seg, i) => {
+        const pct = seg.v / total, dash = pct * circ, o = off * circ - circ / 4;
+        off += pct;
+        return <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={seg.c} strokeWidth="13"
+          strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={-o} />;
+      })}
+      <text x={cx} y={cy - 4} textAnchor="middle" fill={C.text} fontSize="11" fontWeight="700">{fmtTime(total)}</text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fill={C.muted} fontSize="8">total</text>
+    </svg>
+  );
+}
+
+function SectionHeader({ title, sub, icon }) {
+  return (
+    <div style={{ marginBottom: "1.25rem" }}>
+      <h1 style={S.h1}>{icon && <span style={{ marginRight: 6 }}>{icon}</span>}{title}</h1>
+      {sub && <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>{sub}</p>}
+    </div>
+  );
+}
+
+function RangeRow({ label, val, set, min, max, step = 1, unit = "" }) {
+  return (
+    <div style={{ marginBottom: "1rem" }}>
+      <label style={S.label}>{label}: <span style={{ color: C.text }}>{val}{unit}</span></label>
+      <input type="range" min={min} max={max} step={step} value={val}
+        onChange={(e) => set(parseFloat(e.target.value))}
+        style={{ width: "100%", accentColor: C.accent }} />
+    </div>
+  );
+}
+
+function TabToggle({ options, value, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
+      {options.map(([k, l]) => (
+        <button key={k} onClick={() => onChange(k)} style={{
+          flex: 1, padding: "7px 6px", borderRadius: 8,
+          border: `1px solid ${value === k ? C.accent : C.border}`,
+          background: value === k ? `${C.accent}18` : "transparent",
+          color: value === k ? C.accent : C.muted,
+          fontSize: 12, fontWeight: value === k ? 700 : 400, cursor: "pointer",
+        }}>{l}</button>
       ))}
     </div>
   );
 }
 
-// ─── Donut chart (pure SVG) ───────────────────────────────────────────────────
-function Donut({ segments, size = 120 }) {
-  const total = segments.reduce((a, b) => a + b.value, 0) || 1;
-  let offset = 0;
-  const r = 44, cx = 60, cy = 60, circ = 2 * Math.PI * r;
-  return (
-    <svg width={size} height={size} viewBox="0 0 120 120">
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.border} strokeWidth="14" />
-      {segments.map((seg, i) => {
-        const pct = seg.value / total;
-        const dash = pct * circ;
-        const o = offset * circ - circ / 4;
-        offset += pct;
-        return (
-          <circle key={i} cx={cx} cy={cy} r={r} fill="none"
-            stroke={seg.color} strokeWidth="14"
-            strokeDasharray={`${dash} ${circ - dash}`}
-            strokeDashoffset={-o}
-            strokeLinecap="butt"
-            style={{ transition: "stroke-dasharray 0.6s cubic-bezier(.4,0,.2,1)" }}
-          />
-        );
-      })}
-      <text x={cx} y={cy + 6} textAnchor="middle" fill={C.text} fontSize="13" fontWeight="700">
-        {fmtTime(total)}
-      </text>
-    </svg>
-  );
+// ─── PDF Export ───────────────────────────────────────────────────────────────
+function exportPDF(title, rows) {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+  <style>body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:700px;margin:0 auto}
+  h1{font-size:20px;border-bottom:2px solid #00b880;padding-bottom:8px}
+  h2{font-size:14px;color:#444;margin-top:20px}
+  table{width:100%;border-collapse:collapse;margin:10px 0}
+  th{background:#f0f0f0;padding:7px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  td{padding:7px 10px;border-bottom:1px solid #eee;font-size:12px}
+  .footer{margin-top:36px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:10px}
+  @media print{body{padding:16px}}</style></head><body>
+  <h1>⚡ Hybrid Race Pace Lab — ${title}</h1>
+  <p style="color:#666;font-size:11px">Généré le ${new Date().toLocaleDateString("fr-FR")} à ${new Date().toLocaleTimeString("fr-FR")}</p>
+  ${rows.map(([section, data]) => `<h2>${section}</h2>
+  <table><thead><tr>${Object.keys(data[0]).map(k => `<th>${k}</th>`).join("")}</tr></thead>
+  <tbody>${data.map(row => `<tr>${Object.values(row).map(v => `<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table>`).join("")}
+  <div class="footer">Créé par <strong>Marck Roger</strong> · Hybrid Race Pace Lab · Outil personnel non affilié</div>
+  <script>window.onload=()=>{window.print()}</script></body></html>`;
+  w.document.write(html); w.document.close();
 }
 
-// ─── Section header ───────────────────────────────────────────────────────────
-function SectionHeader({ title, subtitle }) {
+// ─── Cookie Banner ────────────────────────────────────────────────────────────
+function CookieBanner() {
+  const [visible, setVisible] = useState(() => !localStorage.getItem("hrpl_cookies"));
+  if (!visible) return null;
+  const accept = () => { localStorage.setItem("hrpl_cookies", "1"); setVisible(false); };
   return (
-    <div style={{ marginBottom: "1.75rem" }}>
-      <h1 style={S.h1}>{title}</h1>
-      {subtitle && <p style={{ color: C.muted, fontSize: 14, margin: 0 }}>{subtitle}</p>}
+    <div style={{ position: "fixed", bottom: 72, left: 12, right: 12, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "0.875rem 1rem", zIndex: 200, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", boxShadow: "0 8px 32px #00000088" }}>
+      <span style={{ fontSize: 12, color: C.muted, flex: 1, minWidth: 200 }}>
+        🍪 Cette app utilise uniquement le <strong style={{ color: C.text }}>localStorage</strong> de votre navigateur pour sauvegarder vos données localement. Aucune donnée n'est transmise à un serveur.
+      </span>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={accept} style={S.btn("primary")}>Accepter</button>
+        <button onClick={() => setVisible(false)} style={S.btn("secondary")}>Fermer</button>
+      </div>
     </div>
   );
 }
 
 // ─── 1. PACE CONVERTER ───────────────────────────────────────────────────────
 function PaceConverter() {
-  const [paceInput, setPaceInput] = useState("5:00");
-  const [kmhInput, setKmhInput] = useState("");
-  const [mode, setMode] = useState("pace"); // pace | speed
+  const [mode, setMode] = useState("pace");
+  const [paceIn, setPaceIn] = useState("5:00");
+  const [kmhIn, setKmhIn] = useState("");
 
-  const kmh = useMemo(() => {
-    if (mode === "pace") return paceToKmh(paceInput);
-    const v = parseFloat(kmhInput);
-    return isNaN(v) ? null : v;
-  }, [mode, paceInput, kmhInput]);
-
+  const kmh = useMemo(() =>
+    mode === "pace" ? paceToKmh(paceIn) : (parseFloat(kmhIn) || null),
+    [mode, paceIn, kmhIn]
+  );
   const pace = kmh ? kmhToPace(kmh) : "--:--";
-
-  const paceToMile = kmh ? kmhToPace(kmh / 1.60934) : "--:--";
+  const pacePerMile = kmh ? kmhToPace(kmh / 1.60934) : "--:--";
 
   const splits = [
-    { label: "400m", km: 0.4 },
-    { label: "600m", km: 0.6 },
-    { label: "800m", km: 0.8 },
-    { label: "1 km", km: 1 },
-    { label: "5 km", km: 5 },
-    { label: "10 km", km: 10 },
-    { label: "8 km (hybrid)", km: 8 },
+    { l: "400m", km: 0.4 }, { l: "600m", km: 0.6 }, { l: "800m", km: 0.8 },
+    { l: "1 km", km: 1 }, { l: "5 km", km: 5 }, { l: "10 km", km: 10 },
+    { l: "Semi (21,1 km)", km: 21.0975 }, { l: "Marathon (42,2 km)", km: 42.195 },
+    { l: "8 km hybride", km: 8, highlight: true },
   ];
 
   return (
     <div>
-      <SectionHeader title="Convertisseur Allure & Vitesse"
-        subtitle="Convertissez instantanément entre allure, vitesse et temps par distance" />
-      <div style={{ ...S.grid(2), marginBottom: "1.25rem" }}>
+      <SectionHeader icon="⚡" title="Convertisseur Allure & Vitesse" sub="Conversion instantanée · splits · zones d'entraînement" />
+      <div style={S.grid2}>
         <div style={S.card}>
-          <div style={{ display: "flex", gap: 8, marginBottom: "1rem" }}>
-            {["pace", "speed"].map((m) => (
-              <button key={m} onClick={() => setMode(m)} style={{
-                ...S.navBtn(mode === m),
-                borderRadius: 8, border: `1px solid ${C.border}`,
-              }}>
-                {m === "pace" ? "Allure (min/km)" : "Vitesse (km/h)"}
-              </button>
-            ))}
-          </div>
-          {mode === "pace" ? (
-            <div>
-              <label style={S.label}>Allure (ex: 5:30)</label>
-              <input style={S.input} value={paceInput}
-                onChange={(e) => setPaceInput(e.target.value)}
-                placeholder="5:00" />
-            </div>
-          ) : (
-            <div>
-              <label style={S.label}>Vitesse (km/h)</label>
-              <input style={S.input} type="number" value={kmhInput}
-                onChange={(e) => setKmhInput(e.target.value)}
-                placeholder="12" />
-            </div>
-          )}
-          <div style={{ ...S.divider }} />
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <TabToggle options={[["pace","Allure min/km"],["speed","Vitesse km/h"]]} value={mode} onChange={setMode} />
+          {mode === "pace"
+            ? <><label style={S.label}>Allure (ex: 5:30)</label><input style={S.input} value={paceIn} onChange={(e) => setPaceIn(e.target.value)} placeholder="5:00" /></>
+            : <><label style={S.label}>Vitesse (km/h)</label><input style={S.input} type="number" value={kmhIn} onChange={(e) => setKmhIn(e.target.value)} placeholder="12" /></>
+          }
+          <div style={{ display: "flex", gap: "0.625rem", marginTop: "1rem", flexWrap: "wrap" }}>
             <div style={S.metric(C.accent)}>
               <div style={{ ...S.metricVal, color: C.accent }}>{pace}</div>
               <div style={S.metricLabel}>min/km</div>
@@ -387,7 +226,7 @@ function PaceConverter() {
               <div style={S.metricLabel}>km/h</div>
             </div>
             <div style={S.metric(C.muted)}>
-              <div style={{ ...S.metricVal, color: C.muted, fontSize: 20 }}>{paceToMile}</div>
+              <div style={{ ...S.metricVal, color: C.muted, fontSize: 17 }}>{pacePerMile}</div>
               <div style={S.metricLabel}>min/mile</div>
             </div>
           </div>
@@ -396,40 +235,27 @@ function PaceConverter() {
         <div style={S.card}>
           <h2 style={S.h2}>Temps au split</h2>
           {splits.map((s) => (
-            <div key={s.label} style={{
-              display: "flex", justifyContent: "space-between",
-              padding: "8px 0", borderBottom: `1px solid ${C.border}`,
-              fontSize: 14,
-            }}>
-              <span style={{ color: C.muted, fontWeight: 500 }}>{s.label}</span>
-              <span style={{
-                fontWeight: 700, color: s.label === "8 km (hybrid)" ? C.accent : C.text,
-                fontFamily: "monospace",
-              }}>
-                {splitTime(kmh, s.km)}
-              </span>
+            <div key={s.l} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
+              <span style={{ color: s.highlight ? C.accent : C.muted, fontWeight: s.highlight ? 700 : 400 }}>{s.l}</span>
+              <span style={{ fontWeight: 700, color: s.highlight ? C.accent : C.text, fontFamily: "monospace" }}>{splitTime(kmh, s.km)}</span>
             </div>
           ))}
         </div>
       </div>
 
       <div style={S.card}>
-        <h2 style={S.h2}>Zones d'allure recommandées</h2>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+        <h2 style={S.h2}>Zones d'entraînement</h2>
+        <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap" }}>
           {[
-            { zone: "Z1 – Récupération", mult: 1.35, color: "#4DA6FF" },
-            { zone: "Z2 – Endurance", mult: 1.18, color: "#00E5A0" },
-            { zone: "Z3 – Tempo", mult: 1.06, color: "#FFB84D" },
-            { zone: "Z4 – Seuil", mult: 0.97, color: "#FF7A40" },
-            { zone: "Z5 – VO2max", mult: 0.90, color: "#FF5C6A" },
+            { z: "Z1 Récup", mult: 1.35, c: C.info },
+            { z: "Z2 Endurance", mult: 1.18, c: C.accent },
+            { z: "Z3 Tempo", mult: 1.06, c: "#90EE90" },
+            { z: "Z4 Seuil", mult: 0.97, c: C.warning },
+            { z: "Z5 VO2max", mult: 0.90, c: C.danger },
           ].map((z) => (
-            <div key={z.zone} style={{
-              ...S.metric(z.color), minWidth: 140, flex: "1 1 140px",
-            }}>
-              <div style={{ ...S.metricVal, fontSize: 18, color: z.color }}>
-                {kmh ? kmhToPace(kmh * (1 / z.mult)) : "--:--"}
-              </div>
-              <div style={S.metricLabel}>{z.zone}</div>
+            <div key={z.z} style={{ ...S.metric(z.c), flex: "1 1 110px" }}>
+              <div style={{ ...S.metricVal, fontSize: 17, color: z.c }}>{kmh ? kmhToPace(kmh * (1 / z.mult)) : "--:--"}</div>
+              <div style={S.metricLabel}>{z.z}</div>
             </div>
           ))}
         </div>
@@ -441,381 +267,387 @@ function PaceConverter() {
 // ─── 2. HYBRID RACE SIMULATOR ─────────────────────────────────────────────────
 function RaceSimulator({ onSave }) {
   const [pace, setPace] = useState("5:30");
-  const [stations, setStations] = useState(
-    DEFAULT_STATIONS.map((s) => ({ ...s, time: s.defaultTime }))
-  );
-  const [transition, setTransition] = useState(15);
-  const [fatigueMultiplier, setFatigueMultiplier] = useState(1.08);
+  const [cat, setCat] = useState("mRx");
   const [format, setFormat] = useState("solo");
-  const [level, setLevel] = useState("rx");
+  const [transition, setTransition] = useState(15);
+  const [fatigue, setFatigue] = useState(1.08);
+  const [times, setTimes] = useState(() =>
+    Object.fromEntries(STATIONS.map((s) => [s.id, s.defaultTime.mRx]))
+  );
+
+  useEffect(() => {
+    setTimes(Object.fromEntries(STATIONS.map((s) => [s.id, s.defaultTime[cat]])));
+  }, [cat]);
 
   const kmh = paceToKmh(pace) || 10.9;
-
-  const runTimePerKm = 3600 / kmh;
-  const runTotalTime = runTimePerKm * RUNNING_SEGMENTS * fatigueMultiplier;
-  const stationTotal = stations.reduce((a, s) => a + s.time * fatigueMultiplier, 0);
-  const transitionTotal = transition * 8;
-  const totalTime = runTotalTime + stationTotal + transitionTotal;
-
-  const stationColors = [
-    "#4DA6FF", "#00E5A0", "#FFB84D", "#FF5C6A",
-    "#C084FC", "#F472B6", "#34D399", "#FBBF24",
-  ];
+  const runTime = (3600 / kmh) * 8 * fatigue;
+  const stTime = Object.values(times).reduce((a, b) => a + b * fatigue, 0);
+  const trTime = transition * 8;
+  const total = runTime + stTime + trTime;
 
   const donutSegs = [
-    { label: "Course", value: runTotalTime, color: C.accent },
-    { label: "Stations", value: stationTotal, color: C.info },
-    { label: "Transitions", value: transitionTotal, color: C.warning },
+    { v: runTime, c: C.accent, l: "Course" },
+    { v: stTime, c: C.info, l: "Stations" },
+    { v: trTime, c: C.warning, l: "Transitions" },
   ];
 
-  const barData = stations.map((s, i) => ({
-    label: s.name.split(" ")[0],
-    value: s.time * fatigueMultiplier,
-  }));
-
-  const updateStation = (id, val) =>
-    setStations((prev) => prev.map((s) => s.id === id ? { ...s, time: parseInt(val) || 0 } : s));
-
-  // insights
   const insights = useMemo(() => {
-    const worst = [...stations].sort((a, b) => b.time - a.time)[0];
-    const runPct = (runTotalTime / totalTime * 100).toFixed(0);
-    const transPct = (transitionTotal / totalTime * 100).toFixed(0);
-    const res = [];
-    res.push(`🏃 La course représente ${runPct}% du temps total (${fmtTime(runTotalTime)}).`);
-    res.push(`⚡ Station la plus longue : ${worst.name} (${fmtTime(worst.time * fatigueMultiplier)}). C'est votre priorité d'amélioration.`);
-    if (transitionTotal > 150) res.push(`⏱ Les transitions représentent ${transPct}% — réduire à 10s/transition vous ferait gagner ${fmtTime(transitionTotal - 10 * 8)}.`);
-    if (fatigueMultiplier > 1.1) res.push(`💡 Votre indice de fatigue est élevé. Travaillez l'endurance spécifique hybride pour le réduire.`);
-    return res;
-  }, [stations, runTotalTime, totalTime, transitionTotal, fatigueMultiplier]);
+    const worst = STATIONS.reduce((a, b) => (times[b.id] > times[a.id] ? b : a));
+    const runPct = (runTime / total * 100).toFixed(0);
+    const trPct = (trTime / total * 100).toFixed(0);
+    return [
+      `🏃 La course représente ${runPct}% du temps total (${fmtTime(runTime)}).`,
+      `⚡ Station la plus longue : ${worst.name} (${fmtTime(times[worst.id] * fatigue)}). Priorité n°1.`,
+      trTime > 120
+        ? `⏱ Transitions : ${trPct}% du total. Chaque seconde gagnée × 8 stations = gain réel.`
+        : `✅ Transitions efficaces (${fmtTime(trTime)} total).`,
+      fatigue > 1.1
+        ? `💡 Multiplicateur de fatigue élevé (${fatigue.toFixed(2)}×) — travaillez l'endurance spécifique hybride.`
+        : `✅ Bonne résistance à la fatigue simulée (${fatigue.toFixed(2)}×).`,
+    ];
+  }, [times, runTime, total, trTime, fatigue]);
 
-  const handleSave = () => {
-    onSave?.({ pace, totalTime, format, level, date: new Date().toISOString() });
+  const handleExportPDF = () => {
+    exportPDF(`Simulation ${CAT_KEY[cat]} — ${format} — ${fmtTime(total)}`, [
+      ["Résumé", [
+        { Segment: "Course (8 km)", Durée: fmtTime(runTime), "%": `${(runTime/total*100).toFixed(0)}%` },
+        { Segment: "Stations (×8)", Durée: fmtTime(stTime), "%": `${(stTime/total*100).toFixed(0)}%` },
+        { Segment: "Transitions", Durée: fmtTime(trTime), "%": `${(trTime/total*100).toFixed(0)}%` },
+        { Segment: "TOTAL", Durée: fmtTime(total), "%": "100%" },
+      ]],
+      ["Détail stations", STATIONS.map((s) => ({
+        Station: s.name, Distance: s.dist,
+        Poids: s.weights[cat] || "—",
+        "Temps base": fmtTime(times[s.id]),
+        "Avec fatigue": fmtTime(times[s.id] * fatigue),
+      }))],
+    ]);
   };
 
   return (
     <div>
-      <SectionHeader title="Simulateur Course Hybride"
-        subtitle="Simulez votre performance sur un format hybride de type endurance fonctionnelle" />
+      <SectionHeader icon="🏁" title="Simulateur Course Hybride" sub="Simulation complète avec poids officiels par catégorie" />
 
-      <div style={{ ...S.card, marginBottom: "1rem" }}>
-        <div style={S.row}>
-          <div style={{ flex: 1, minWidth: 160 }}>
+      <div style={S.card}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "0.875rem" }}>
+          <div>
+            <label style={S.label}>Catégorie</label>
+            <select style={S.input} value={cat} onChange={(e) => setCat(e.target.value)}>
+              {Object.entries(CAT_KEY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div>
             <label style={S.label}>Format</label>
-            <select style={{ ...S.input }} value={format} onChange={(e) => setFormat(e.target.value)}>
+            <select style={S.input} value={format} onChange={(e) => setFormat(e.target.value)}>
               <option value="solo">Solo</option>
               <option value="doubles">Doubles</option>
               <option value="relay">Relais</option>
             </select>
           </div>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <label style={S.label}>Niveau</label>
-            <select style={{ ...S.input }} value={level} onChange={(e) => setLevel(e.target.value)}>
-              <option value="rx">RX</option>
-              <option value="scaled">Scaled</option>
-              <option value="pro">Pro</option>
-            </select>
-          </div>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <label style={S.label}>Allure course (min/km)</label>
+          <div>
+            <label style={S.label}>Allure course</label>
             <input style={S.input} value={pace} onChange={(e) => setPace(e.target.value)} placeholder="5:30" />
           </div>
-          <div style={{ flex: 1, minWidth: 160 }}>
+          <div>
             <label style={S.label}>Transition (sec)</label>
-            <input style={S.input} type="number" value={transition}
-              onChange={(e) => setTransition(parseInt(e.target.value) || 0)} />
-          </div>
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <label style={S.label}>Multiplicateur fatigue: {fatigueMultiplier.toFixed(2)}×</label>
-            <input type="range" min="1" max="1.3" step="0.01"
-              value={fatigueMultiplier}
-              onChange={(e) => setFatigueMultiplier(parseFloat(e.target.value))}
-              style={{ width: "100%", accentColor: C.accent }} />
+            <input style={S.input} type="number" value={transition} onChange={(e) => setTransition(parseInt(e.target.value)||0)} />
           </div>
         </div>
+        <RangeRow label="Multiplicateur fatigue" val={fatigue} set={setFatigue} min={1} max={1.3} step={0.01} />
       </div>
 
-      {/* Stations */}
       <div style={S.card}>
-        <h2 style={S.h2}>Temps par station (secondes)</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.75rem" }}>
-          {stations.map((s, i) => (
-            <div key={s.id} style={{
-              background: C.surface2, borderRadius: 10, padding: "0.75rem 1rem",
-              borderLeft: `3px solid ${stationColors[i]}`,
-              display: "flex", alignItems: "center", gap: 12,
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>
-                  {s.icon} {s.name}
-                  <span style={{ ...S.badge(stationColors[i]), marginLeft: 6 }}>{s.dist}</span>
+        <h2 style={S.h2}>Temps par station</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "0.625rem" }}>
+          {STATIONS.map((s, i) => {
+            const w = s.weights[cat];
+            return (
+              <div key={s.id} style={{ background: C.surface2, borderRadius: 9, padding: "0.75rem", borderLeft: `3px solid ${STATION_COLORS[i]}` }}>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>{s.icon} {s.name}</span>
+                  {w && <span style={S.badge(STATION_COLORS[i])}>{w}</span>}
                 </div>
-                <input style={{ ...S.input, padding: "6px 10px", fontSize: 14 }}
-                  type="number" value={s.time}
-                  onChange={(e) => updateStation(s.id, e.target.value)} />
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: stationColors[i] }}>
-                  {fmtTime(s.time * fatigueMultiplier)}
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input style={{ ...S.input, flex: 1, padding: "6px 10px", fontSize: 13 }} type="number"
+                    value={times[s.id]} onChange={(e) => setTimes(prev => ({ ...prev, [s.id]: parseInt(e.target.value)||0 }))} />
+                  <div style={{ textAlign: "right", minWidth: 54 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: STATION_COLORS[i] }}>{fmtTime(times[s.id] * fatigue)}</div>
+                    <div style={{ fontSize: 9, color: C.muted }}>avec fatigue</div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: C.muted }}>avec fatigue</div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Results */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+      <div style={S.grid2}>
         <div style={S.card}>
           <h2 style={S.h2}>Résultat estimé</h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
-            <Donut segments={donutSegs} size={140} />
+          <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
+            <Donut segs={donutSegs} size={130} />
             <div style={{ flex: 1 }}>
               {donutSegs.map((seg, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.muted }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: seg.color, display: "inline-block" }} />
-                    {seg.label}
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, color: C.muted }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: seg.c, display: "inline-block" }} />{seg.l}
                   </span>
-                  <span style={{ fontWeight: 700, color: seg.color }}>{fmtTime(seg.value)}</span>
+                  <span style={{ fontWeight: 700, color: seg.c }}>{fmtTime(seg.v)}</span>
                 </div>
               ))}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 15 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 14 }}>
                 <span style={{ fontWeight: 700 }}>Total</span>
-                <span style={{ fontWeight: 800, color: C.accent, fontFamily: "monospace", fontSize: 18 }}>{fmtTime(totalTime)}</span>
+                <span style={{ fontWeight: 800, color: C.accent, fontFamily: "monospace", fontSize: 17 }}>{fmtTime(total)}</span>
               </div>
             </div>
           </div>
-          <button style={S.btn("primary")} onClick={handleSave}>
-            💾 Sauvegarder ce résultat
-          </button>
+          <div style={{ display: "flex", gap: 8, marginTop: "0.75rem", flexWrap: "wrap" }}>
+            <button style={S.btn("primary")} onClick={() => onSave?.({ pace, totalTime: total, format, cat, date: new Date().toISOString() })}>💾 Sauvegarder</button>
+            <button style={S.btn("secondary")} onClick={handleExportPDF}>📄 Exporter PDF</button>
+          </div>
         </div>
 
         <div style={S.card}>
-          <h2 style={S.h2}>Stations (avec fatigue)</h2>
-          <BarChart data={barData} colors={stationColors} height={160} />
+          <h2 style={S.h2}>💡 Insights</h2>
+          {insights.map((ins, i) => <div key={i} style={S.insight}>{ins}</div>)}
         </div>
-      </div>
-
-      {/* Insights */}
-      <div style={S.card}>
-        <h2 style={S.h2}>💡 Insights intelligents</h2>
-        {insights.map((ins, i) => (
-          <div key={i} style={S.insightBox}>{ins}</div>
-        ))}
       </div>
     </div>
   );
 }
 
-// ─── 3. STRATEGY ANALYZER ────────────────────────────────────────────────────
-function StrategyAnalyzer() {
-  const [basePace, setBasePace] = useState("5:30");
-  const [baseStation, setBaseStation] = useState(230);
-  const [baseTransition, setBaseTransition] = useState(20);
-  const [paceGain, setPaceGain] = useState(15);
-  const [stationGain, setStationGain] = useState(10);
-  const [transGain, setTransGain] = useState(50);
+// ─── 3. SEMI / MARATHON SIMULATOR ────────────────────────────────────────────
+function RunSimulator() {
+  const [dist, setDist] = useState("semi");
+  const [pace, setPace] = useState("5:10");
+  const [fatiguePct, setFatiguePct] = useState(3);
 
-  const kmh = paceToKmh(basePace) || 10.9;
-  const BASE_RUN = (3600 / kmh) * 8;
-  const BASE_ST = baseStation * 8;
-  const BASE_TR = baseTransition * 8;
-  const baseTotal = BASE_RUN + BASE_ST + BASE_TR;
+  const KM = dist === "semi" ? 21.0975 : 42.195;
+  const kmh = paceToKmh(pace) || 11.6;
 
-  const scenarios = [
-    {
-      label: "Améliorer l'allure",
-      gain: (BASE_RUN - (BASE_RUN * (1 - paceGain / 100))),
-      color: C.accent,
-      icon: "🏃",
-      desc: `−${paceGain}% temps course`,
-    },
-    {
-      label: "Efficacité stations",
-      gain: (BASE_ST * stationGain / 100),
-      color: C.info,
-      icon: "💪",
-      desc: `−${stationGain}% stations`,
-    },
-    {
-      label: "Réduire transitions",
-      gain: (BASE_TR * transGain / 100),
-      color: C.warning,
-      icon: "⏱",
-      desc: `−${transGain}% transitions`,
-    },
-  ];
+  const checkpoints = dist === "semi"
+    ? [5, 10, 15, 21.0975]
+    : [5, 10, 15, 20, 25, 30, 35, 40, 42.195];
 
-  const maxGain = Math.max(...scenarios.map((s) => s.gain), 1);
+  const getTimeAt = (km) => {
+    const fatFactor = 1 + (km / KM) * (fatiguePct / 100);
+    return (km / (kmh * fatFactor)) * 3600;
+  };
+
+  const totalTime = getTimeAt(KM);
+  const wallKm = dist === "marathon" && fatiguePct > 8 ? Math.round(28 + (15 - fatiguePct) * 0.8) : null;
+
+  const splits = checkpoints.map((km) => ({
+    km, time: getTimeAt(km),
+    pace: kmhToPace(km / (getTimeAt(km) / 3600)),
+  }));
+
+  const refs = dist === "semi"
+    ? [["Élite hommes", "~1h00"], ["Élite femmes", "~1h05"], ["Sub 1h30", "4:16/km"], ["Sub 2h00", "5:41/km"]]
+    : [["Élite hommes", "~2h00"], ["Élite femmes", "~2h14"], ["Sub 3h00", "4:16/km"], ["Sub 4h00", "5:41/km"]];
+
+  const handleExportPDF = () => {
+    exportPDF(`${dist === "semi" ? "Semi-marathon" : "Marathon"} — ${fmtTime(totalTime)}`, [
+      ["Splits prévisionnels", splits.map((s) => ({
+        "Distance": `${s.km % 1 === 0 ? s.km : s.km.toFixed(1)} km`,
+        "Temps": fmtTime(s.time),
+        "Allure": s.pace + "/km",
+      }))],
+    ]);
+  };
 
   return (
     <div>
-      <SectionHeader title="Analyseur de Stratégie"
-        subtitle="Identifiez où vous pouvez gagner le plus de temps et comparez vos scénarios" />
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+      <SectionHeader icon="🏃" title="Simulateur Course à Pied" sub="Semi-marathon · marathon · splits prévisionnels · risque de mur" />
+      <div style={S.grid2}>
         <div style={S.card}>
-          <h2 style={S.h2}>Paramètres de base</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {[
-              { label: "Allure course", val: basePace, set: setBasePace, type: "text", placeholder: "5:30" },
-              { label: "Temps station moyen (sec)", val: baseStation, set: (v) => setBaseStation(parseInt(v) || 0), type: "number" },
-              { label: "Temps transition moyen (sec)", val: baseTransition, set: (v) => setBaseTransition(parseInt(v) || 0), type: "number" },
-            ].map((f) => (
-              <div key={f.label}>
-                <label style={S.label}>{f.label}</label>
-                <input style={S.input} type={f.type} value={f.val}
-                  onChange={(e) => f.set(e.target.value)} placeholder={f.placeholder} />
-              </div>
-            ))}
-            <div style={{ ...S.metric(), marginTop: 8 }}>
-              <div style={{ ...S.metricVal }}>{fmtTime(baseTotal)}</div>
-              <div style={S.metricLabel}>Temps total de base</div>
+          <TabToggle options={[["semi","Semi-marathon"],["marathon","Marathon"]]} value={dist} onChange={setDist} />
+          <label style={S.label}>Allure cible (min/km)</label>
+          <input style={{ ...S.input, marginBottom: "1rem" }} value={pace} onChange={(e) => setPace(e.target.value)} placeholder="5:10" />
+          <RangeRow label="Ralentissement progressif" val={fatiguePct} set={setFatiguePct} min={0} max={20} unit="%" />
+
+          <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+            <div style={S.metric(C.accent)}>
+              <div style={{ ...S.metricVal, color: C.accent, fontSize: 19 }}>{fmtTime(totalTime)}</div>
+              <div style={S.metricLabel}>Temps estimé</div>
+            </div>
+            <div style={S.metric(C.info)}>
+              <div style={{ ...S.metricVal, color: C.info, fontSize: 17 }}>{kmhToPace(KM / (totalTime / 3600))}</div>
+              <div style={S.metricLabel}>Allure moyenne</div>
             </div>
           </div>
+
+          {wallKm && (
+            <div style={{ ...S.insight, marginTop: "0.75rem", borderColor: `${C.danger}44`, background: `${C.danger}10`, color: C.danger }}>
+              ⚠️ Risque de mur vers le km {wallKm}. Adoptez un départ conservateur.
+            </div>
+          )}
+
+          <div style={{ ...S.divider }} />
+          <h2 style={S.h2}>Références</h2>
+          {refs.map(([l, v]) => (
+            <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", color: C.muted }}>
+              <span>{l}</span><span style={{ fontWeight: 600, color: C.text }}>{v}</span>
+            </div>
+          ))}
+          <button style={{ ...S.btn("secondary"), marginTop: "0.75rem" }} onClick={handleExportPDF}>📄 Exporter PDF</button>
         </div>
 
         <div style={S.card}>
-          <h2 style={S.h2}>Hypothèses d'amélioration</h2>
-          {[
-            { label: `Gain allure (${paceGain}%)`, val: paceGain, set: setPaceGain, min: 1, max: 30 },
-            { label: `Gain stations (${stationGain}%)`, val: stationGain, set: setStationGain, min: 1, max: 40 },
-            { label: `Gain transitions (${transGain}%)`, val: transGain, set: setTransGain, min: 0, max: 100 },
-          ].map((f) => (
-            <div key={f.label} style={{ marginBottom: "1rem" }}>
-              <label style={S.label}>{f.label}</label>
-              <input type="range" min={f.min} max={f.max} step="1"
-                value={f.val} onChange={(e) => f.set(parseInt(e.target.value))}
-                style={{ width: "100%", accentColor: C.accent }} />
+          <h2 style={S.h2}>Splits prévisionnels</h2>
+          {splits.map((s, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
+              <span style={{ color: C.muted, minWidth: 70 }}>km {s.km % 1 === 0 ? s.km : s.km.toFixed(1)}</span>
+              <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{fmtTime(s.time)}</span>
+              <span style={S.badge(C.muted)}>{s.pace}/km</span>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 4. STRATEGY ANALYZER ────────────────────────────────────────────────────
+function StrategyAnalyzer() {
+  const [basePace, setBasePace] = useState("5:30");
+  const [baseSt, setBaseSt] = useState(230);
+  const [baseTr, setBaseTr] = useState(20);
+  const [paceG, setPaceG] = useState(15);
+  const [stG, setStG] = useState(10);
+  const [trG, setTrG] = useState(50);
+
+  const kmh = paceToKmh(basePace) || 10.9;
+  const BASE_RUN = (3600 / kmh) * 8;
+  const BASE_ST = baseSt * 8;
+  const BASE_TR = baseTr * 8;
+  const baseTotal = BASE_RUN + BASE_ST + BASE_TR;
+
+  const scenarios = [
+    { l: "Améliorer l'allure", gain: BASE_RUN * paceG / 100, c: C.accent, icon: "🏃", desc: `−${paceG}% course` },
+    { l: "Efficacité stations", gain: BASE_ST * stG / 100, c: C.info, icon: "💪", desc: `−${stG}% stations` },
+    { l: "Réduire transitions", gain: BASE_TR * trG / 100, c: C.warning, icon: "⏱", desc: `−${trG}% transitions` },
+  ];
+  const maxG = Math.max(...scenarios.map((s) => s.gain), 1);
+  const best = [...scenarios].sort((a, b) => b.gain - a.gain)[0];
+
+  return (
+    <div>
+      <SectionHeader icon="📊" title="Analyseur de Stratégie" sub="Comparez les scénarios d'amélioration et priorisez vos efforts" />
+      <div style={S.grid2}>
+        <div style={S.card}>
+          <h2 style={S.h2}>Base actuelle</h2>
+          <label style={S.label}>Allure course</label>
+          <input style={{ ...S.input, marginBottom: "0.875rem" }} value={basePace} onChange={(e) => setBasePace(e.target.value)} placeholder="5:30" />
+          <label style={S.label}>Temps station moyen (sec)</label>
+          <input style={{ ...S.input, marginBottom: "0.875rem" }} type="number" value={baseSt} onChange={(e) => setBaseSt(parseInt(e.target.value)||0)} />
+          <label style={S.label}>Temps transition moyen (sec)</label>
+          <input style={{ ...S.input, marginBottom: "1rem" }} type="number" value={baseTr} onChange={(e) => setBaseTr(parseInt(e.target.value)||0)} />
+          <div style={S.metric()}>
+            <div style={{ ...S.metricVal }}>{fmtTime(baseTotal)}</div>
+            <div style={S.metricLabel}>Temps total de base</div>
+          </div>
+        </div>
+        <div style={S.card}>
+          <h2 style={S.h2}>Hypothèses d'amélioration</h2>
+          <RangeRow label="Gain allure" val={paceG} set={setPaceG} min={1} max={30} unit="%" />
+          <RangeRow label="Gain stations" val={stG} set={setStG} min={1} max={40} unit="%" />
+          <RangeRow label="Gain transitions" val={trG} set={setTrG} min={0} max={100} unit="%" />
         </div>
       </div>
 
       <div style={S.card}>
         <h2 style={S.h2}>Impact comparatif</h2>
         {scenarios.map((s, i) => (
-          <div key={i} style={{ marginBottom: "1.25rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{s.icon} {s.label}</span>
-              <div style={{ textAlign: "right" }}>
-                <span style={{ ...S.badge(s.color) }}>−{fmtTime(s.gain)}</span>
-                <span style={{ fontSize: 11, color: C.muted, marginLeft: 8 }}>{s.desc}</span>
+          <div key={i} style={{ marginBottom: "1.125rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{s.icon} {s.l}</span>
+              <div>
+                <span style={S.badge(s.c)}>−{fmtTime(s.gain)}</span>
+                <span style={{ fontSize: 10, color: C.muted, marginLeft: 6 }}>{s.desc}</span>
               </div>
             </div>
-            <div style={{ height: 8, background: C.border, borderRadius: 8, overflow: "hidden" }}>
-              <div style={{
-                height: "100%",
-                width: `${(s.gain / maxGain) * 100}%`,
-                background: s.color,
-                borderRadius: 8,
-                transition: "width 0.5s cubic-bezier(.4,0,.2,1)",
-              }} />
+            <div style={{ height: 7, background: C.border, borderRadius: 7, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${(s.gain / maxG) * 100}%`, background: s.c, borderRadius: 7, transition: "width 0.5s ease" }} />
             </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
               Nouveau total : {fmtTime(baseTotal - s.gain)} ({((s.gain / baseTotal) * 100).toFixed(1)}% de gain)
             </div>
           </div>
         ))}
-
-        <div style={{ ...S.divider }} />
-        <div style={S.insightBox}>
-          💡 {scenarios.sort((a, b) => b.gain - a.gain)[0].label} vous apporte le gain le plus important.
-          Priorisez cet axe dans votre entraînement.
+        <div style={S.divider} />
+        <div style={S.insight}>
+          💡 <strong>{best.l}</strong> vous apporte le gain le plus important (−{fmtTime(best.gain)}). Priorisez cet axe.
         </div>
       </div>
     </div>
   );
 }
 
-// ─── 4. NUTRITION CALCULATOR ──────────────────────────────────────────────────
+// ─── 5. NUTRITION ─────────────────────────────────────────────────────────────
 function NutritionCalc() {
   const [weight, setWeight] = useState(72);
   const [duration, setDuration] = useState(90);
   const [intensity, setIntensity] = useState("modere");
   const [temp, setTemp] = useState(20);
+  const [sex, setSex] = useState("m");
 
-  const intMap = { leger: 0.7, modere: 1.0, intense: 1.3, max: 1.6 };
-  const mult = intMap[intensity];
-
-  const carbPerHour = Math.round(40 * mult + (weight - 70) * 0.3);
-  const totalCarbs = Math.round(carbPerHour * (duration / 60));
-  const hydration = Math.round((500 + (temp - 15) * 25) * mult * (duration / 60));
+  const mult = { leger: 0.7, modere: 1.0, intense: 1.3, max: 1.6 }[intensity];
+  const sexMult = sex === "f" ? 0.88 : 1;
+  const carbPerH = Math.round((40 + (weight - 70) * 0.3) * mult * sexMult);
+  const hydPerH = Math.round((500 + (temp - 15) * 25) * mult);
   const sodium = Math.round(600 * mult * (duration / 60));
+  const gels = Math.ceil(carbPerH * (duration / 60) / 22);
 
   const timeline = [];
-  for (let t = 0; t <= duration; t += 20) {
-    timeline.push({
-      time: t,
-      carbs: t === 0 ? 0 : Math.round((carbPerHour / 3) * mult),
-      water: Math.round(hydration / (duration / 20)),
-    });
+  for (let t = 20; t <= duration; t += 20) {
+    timeline.push({ t, carbs: Math.round(carbPerH * 20 / 60), water: Math.round(hydPerH * 20 / 60) });
   }
 
   return (
     <div>
-      <SectionHeader title="Calculateur Nutrition & Hydratation"
-        subtitle="Optimisez votre stratégie nutritionnelle pour maximiser vos performances" />
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+      <SectionHeader icon="🍬" title="Nutrition & Hydratation" sub="Stratégie de ravitaillement personnalisée pour la compétition" />
+      <div style={S.grid2}>
         <div style={S.card}>
-          <h2 style={S.h2}>Paramètres</h2>
-          {[
-            { label: `Poids corporel: ${weight} kg`, val: weight, set: setWeight, min: 40, max: 120, type: "range" },
-            { label: `Durée estimée: ${duration} min`, val: duration, set: setDuration, min: 30, max: 240, type: "range" },
-            { label: `Température: ${temp}°C`, val: temp, set: setTemp, min: 5, max: 40, type: "range" },
-          ].map((f) => (
-            <div key={f.label} style={{ marginBottom: "1.25rem" }}>
-              <label style={S.label}>{f.label}</label>
-              <input type="range" min={f.min} max={f.max}
-                value={f.val} onChange={(e) => f.set(parseFloat(e.target.value))}
-                style={{ width: "100%", accentColor: C.accent }} />
-            </div>
-          ))}
-          <div>
-            <label style={S.label}>Intensité</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["leger", "modere", "intense", "max"].map((i) => (
-                <button key={i} onClick={() => setIntensity(i)} style={{
-                  ...S.navBtn(intensity === i), flex: 1, border: `1px solid ${C.border}`, borderRadius: 8,
-                }}>
-                  {i === "leger" ? "Léger" : i === "modere" ? "Modéré" : i === "intense" ? "Intense" : "Max"}
-                </button>
-              ))}
-            </div>
+          <TabToggle options={[["m","Homme"],["f","Femme"]]} value={sex} onChange={setSex} />
+          <RangeRow label="Poids corporel" val={weight} set={setWeight} min={40} max={120} unit=" kg" />
+          <RangeRow label="Durée estimée" val={duration} set={setDuration} min={30} max={240} unit=" min" />
+          <RangeRow label="Température" val={temp} set={setTemp} min={5} max={42} unit="°C" />
+          <label style={S.label}>Intensité</label>
+          <div style={{ display: "flex", gap: 5 }}>
+            {[["leger","Léger"],["modere","Modéré"],["intense","Intense"],["max","Max"]].map(([k, l]) => (
+              <button key={k} onClick={() => setIntensity(k)} style={{ flex: 1, padding: "6px 4px", borderRadius: 7, border: `1px solid ${intensity === k ? C.accent : C.border}`, background: intensity === k ? `${C.accent}18` : "transparent", color: intensity === k ? C.accent : C.muted, fontSize: 11, fontWeight: intensity === k ? 700 : 400, cursor: "pointer" }}>{l}</button>
+            ))}
           </div>
         </div>
 
         <div style={S.card}>
           <h2 style={S.h2}>Recommandations</h2>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+          <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap", marginBottom: "1rem" }}>
             <div style={S.metric(C.accent)}>
-              <div style={{ ...S.metricVal, color: C.accent }}>{carbPerHour}g</div>
-              <div style={S.metricLabel}>glucides/heure</div>
+              <div style={{ ...S.metricVal, color: C.accent }}>{carbPerH}g</div>
+              <div style={S.metricLabel}>glucides/h</div>
             </div>
             <div style={S.metric(C.info)}>
-              <div style={{ ...S.metricVal, color: C.info }}>{Math.round(hydration / (duration / 60))}ml</div>
-              <div style={S.metricLabel}>eau/heure</div>
+              <div style={{ ...S.metricVal, color: C.info }}>{hydPerH}ml</div>
+              <div style={S.metricLabel}>eau/h</div>
             </div>
             <div style={S.metric(C.warning)}>
-              <div style={{ ...S.metricVal, color: C.warning, fontSize: 18 }}>{sodium}mg</div>
+              <div style={{ ...S.metricVal, color: C.warning, fontSize: 17 }}>{sodium}mg</div>
               <div style={S.metricLabel}>sodium total</div>
             </div>
+            <div style={S.metric(C.purple)}>
+              <div style={{ ...S.metricVal, color: C.purple }}>{gels}</div>
+              <div style={S.metricLabel}>gels ~22g</div>
+            </div>
           </div>
-
-          <div style={{ ...S.divider }} />
-          <h2 style={S.h2}>Timeline de ravitaillement</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {timeline.slice(1).map((t, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "8px 12px", background: C.surface2, borderRadius: 8,
-                fontSize: 13,
-              }}>
-                <span style={{ ...S.badge(C.muted), minWidth: 40 }}>T+{t.time}m</span>
-                <span style={{ color: C.accent }}>🍬 {t.carbs}g glucides</span>
+          <div style={S.divider} />
+          <h2 style={S.h2}>Timeline ravitaillement</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {timeline.map((t, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: C.surface2, borderRadius: 7, fontSize: 12 }}>
+                <span style={S.badge(C.muted)}>T+{t.t}m</span>
+                <span style={{ color: C.accent }}>🍬 {t.carbs}g</span>
                 <span style={{ color: C.info }}>💧 {t.water}ml</span>
               </div>
             ))}
@@ -826,78 +658,79 @@ function NutritionCalc() {
   );
 }
 
-// ─── 5. DASHBOARD ─────────────────────────────────────────────────────────────
-function Dashboard({ records }) {
-  const bestPace = records.length
-    ? records.reduce((a, b) => paceToKmh(a.pace) > paceToKmh(b.pace) ? a : b).pace
-    : null;
-  const bestTime = records.length
-    ? records.reduce((a, b) => a.totalTime < b.totalTime ? a : b).totalTime
-    : null;
-  const avgTime = records.length
-    ? records.reduce((a, b) => a + b.totalTime, 0) / records.length
-    : null;
+// ─── 6. DASHBOARD ─────────────────────────────────────────────────────────────
+function Dashboard({ records, onClear }) {
+  const bestTime = records.length ? Math.min(...records.map(r => r.totalTime)) : null;
+  const bestPace = records.length ? records.reduce((a, b) => (paceToKmh(a.pace)||0) > (paceToKmh(b.pace)||0) ? a : b).pace : null;
+  const avgTime = records.length ? records.reduce((a, b) => a + b.totalTime, 0) / records.length : null;
+  const trend = records.slice(-10).map(r => r.totalTime);
 
-  const trend = records.slice(-8).map((r) => r.totalTime);
+  const handleExportPDF = () => {
+    if (!records.length) return;
+    exportPDF("Historique des sessions", [
+      ["Sessions", records.map((r, i) => ({
+        "#": i + 1,
+        Date: new Date(r.date).toLocaleDateString("fr-FR"),
+        Format: r.format,
+        Catégorie: r.cat ? CAT_KEY[r.cat] : "—",
+        "Allure": r.pace + "/km",
+        Total: fmtTime(r.totalTime),
+      }))],
+    ]);
+  };
 
   return (
     <div>
-      <SectionHeader title="Tableau de Bord Performance"
-        subtitle="Suivez vos progrès et analysez vos tendances d'entraînement hybride" />
+      <SectionHeader icon="📈" title="Tableau de Bord" sub="Historique de vos simulations et tendances de performance" />
 
       {records.length === 0 ? (
         <div style={{ ...S.card, textAlign: "center", padding: "3rem" }}>
-          <div style={{ fontSize: 48, marginBottom: "1rem" }}>🏁</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Aucune session enregistrée</div>
-          <div style={{ color: C.muted, fontSize: 14 }}>
-            Simulez une course et sauvegardez les résultats pour les voir apparaître ici.
-          </div>
+          <div style={{ fontSize: 42, marginBottom: "0.875rem" }}>🏁</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Aucune session enregistrée</div>
+          <div style={{ color: C.muted, fontSize: 13 }}>Simulez une course hybride et sauvegardez le résultat.</div>
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
-            <div style={{ ...S.metric(C.accent), flex: 1, minWidth: 140 }}>
-              <div style={{ ...S.metricVal, color: C.accent }}>{bestPace || "--"}</div>
-              <div style={S.metricLabel}>Meilleure allure</div>
-            </div>
-            <div style={{ ...S.metric(C.info), flex: 1, minWidth: 140 }}>
-              <div style={{ ...S.metricVal, color: C.info, fontSize: 20 }}>{bestTime ? fmtTime(bestTime) : "--"}</div>
-              <div style={S.metricLabel}>Meilleur temps</div>
-            </div>
-            <div style={{ ...S.metric(C.warning), flex: 1, minWidth: 140 }}>
-              <div style={{ ...S.metricVal, color: C.warning, fontSize: 20 }}>{avgTime ? fmtTime(avgTime) : "--"}</div>
-              <div style={S.metricLabel}>Temps moyen</div>
-            </div>
-            <div style={{ ...S.metric(C.muted), flex: 1, minWidth: 140 }}>
-              <div style={{ ...S.metricVal }}>{records.length}</div>
-              <div style={S.metricLabel}>Sessions</div>
-            </div>
+          <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+            {[
+              { v: bestPace || "--", l: "Meilleure allure", c: C.accent },
+              { v: bestTime ? fmtTime(bestTime) : "--", l: "Meilleur temps", c: C.info },
+              { v: avgTime ? fmtTime(avgTime) : "--", l: "Temps moyen", c: C.warning },
+              { v: records.length, l: "Sessions", c: C.muted },
+            ].map((m, i) => (
+              <div key={i} style={{ ...S.metric(m.c), flex: "1 1 110px" }}>
+                <div style={{ ...S.metricVal, color: m.c, fontSize: 19 }}>{m.v}</div>
+                <div style={S.metricLabel}>{m.l}</div>
+              </div>
+            ))}
           </div>
 
           {trend.length > 1 && (
             <div style={S.card}>
               <h2 style={S.h2}>Évolution du temps total</h2>
-              <Sparkline data={trend} color={C.accent} height={64} width={600} />
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
-                {trend.length} sessions récentes
-              </div>
+              <Sparkline data={trend} color={C.accent} h={56} w={700} />
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>{trend.length} sessions récentes</div>
             </div>
           )}
 
           <div style={S.card}>
-            <h2 style={S.h2}>Sessions récentes</h2>
-            {[...records].reverse().slice(0, 10).map((r, i) => (
-              <div key={i} style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: "10px 0", borderBottom: `1px solid ${C.border}`, fontSize: 14,
-              }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.875rem" }}>
+              <h2 style={{ ...S.h2, marginBottom: 0 }}>Sessions récentes</h2>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={S.btn("secondary")} onClick={handleExportPDF}>📄 PDF</button>
+                <button style={S.btn("danger")} onClick={onClear}>🗑 Effacer</button>
+              </div>
+            </div>
+            {[...records].reverse().slice(0, 15).map((r, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
                 <div>
                   <span style={{ fontWeight: 600 }}>{new Date(r.date).toLocaleDateString("fr-FR")}</span>
-                  <span style={{ ...S.badge(C.muted), marginLeft: 8 }}>{r.format} · {r.level}</span>
+                  <span style={{ ...S.badge(C.muted), marginLeft: 8 }}>{r.format}</span>
+                  {r.cat && <span style={{ ...S.badge(C.info), marginLeft: 4 }}>{CAT_KEY[r.cat]}</span>}
                 </div>
-                <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-                  <span style={{ color: C.muted }}>{r.pace} min/km</span>
-                  <span style={{ fontWeight: 700, color: C.accent, fontFamily: "monospace" }}>{fmtTime(r.totalTime)}</span>
+                <div style={{ display: "flex", gap: "0.875rem", alignItems: "center" }}>
+                  <span style={{ color: C.muted }}>{r.pace}/km</span>
+                  <span style={{ fontWeight: 800, color: C.accent, fontFamily: "monospace" }}>{fmtTime(r.totalTime)}</span>
                 </div>
               </div>
             ))}
@@ -908,180 +741,161 @@ function Dashboard({ records }) {
   );
 }
 
-// ─── 6. PERFORMANCE METRICS ───────────────────────────────────────────────────
+// ─── 7. PERFORMANCE METRICS ───────────────────────────────────────────────────
 function PerformanceMetrics() {
   const [pace, setPace] = useState("5:00");
   const [weight, setWeight] = useState(72);
-  const [hr, setHr] = useState(165);
-  const [maxHr, setMaxHr] = useState(190);
+  const [hrRest, setHrRest] = useState(55);
+  const [hrMax, setHrMax] = useState(190);
+  const [hrCurrent, setHrCurrent] = useState(165);
+  const [age, setAge] = useState(32);
+  const [sex, setSex] = useState("m");
 
   const kmh = paceToKmh(pace) || 12;
-  const hrPct = Math.round((hr / maxHr) * 100);
-  const vo2 = Math.round(15 * (maxHr / (hr || 1)));
-  const economyScore = Math.min(100, Math.round((kmh / (hr / 100)) * 4));
-  const gripScore = Math.round(65 + (weight - 70) * 0.3 + Math.random() * 5);
-  const sledEff = Math.round(55 + kmh * 2);
-  const paceConsistency = Math.round(82 - Math.abs(hrPct - 80) * 0.5);
-  const fatigueIdx = Math.round(hrPct - 75 + (100 - paceConsistency) * 0.3);
+  const hrR = hrMax - hrRest;
 
-  const metrics = [
-    { label: "Estimation VO2max", val: vo2, unit: "ml/kg/min", color: C.accent, max: 80 },
-    { label: "Économie de course", val: economyScore, unit: "/100", color: C.info, max: 100 },
-    { label: "Efficacité sled", val: Math.min(100, sledEff), unit: "/100", color: C.warning, max: 100 },
-    { label: "Consistance allure", val: paceConsistency, unit: "/100", color: "#C084FC", max: 100 },
-    { label: "Score endurance grip", val: Math.min(100, gripScore), unit: "/100", color: "#F472B6", max: 100 },
-    { label: "Index de fatigue", val: fatigueIdx, unit: "/100", color: C.danger, max: 100 },
-  ];
+  const zones = [
+    { z: "Z1 Récupération", lo: 0.50, hi: 0.60, c: C.info },
+    { z: "Z2 Endurance", lo: 0.60, hi: 0.70, c: C.accent },
+    { z: "Z3 Aérobie modéré", lo: 0.70, hi: 0.80, c: "#90EE90" },
+    { z: "Z4 Seuil anaérobique", lo: 0.80, hi: 0.90, c: C.warning },
+    { z: "Z5 VO2max", lo: 0.90, hi: 1.00, c: C.danger },
+  ].map((z) => ({
+    ...z,
+    loHr: Math.round(hrRest + hrR * z.lo),
+    hiHr: Math.round(hrRest + hrR * z.hi),
+    inZone: hrCurrent >= Math.round(hrRest + hrR * z.lo) && hrCurrent < Math.round(hrRest + hrR * z.hi),
+  }));
+
+  // VO2max — formule Uth-Sorensen
+  const vo2raw = Math.round(15 * (hrMax / Math.max(hrRest, 1)));
+  const vo2adj = Math.round(vo2raw * (sex === "f" ? 0.92 : 1) * Math.max(0.7, 1 - (age - 25) * 0.006));
+  const economyScore = Math.min(100, Math.round((kmh / (hrCurrent / 100)) * 4));
+  const fatigueIdx = Math.round(Math.max(0, (hrCurrent / hrMax) * 100 - 70));
 
   return (
     <div>
-      <SectionHeader title="Métriques de Performance Hybride"
-        subtitle="Indicateurs avancés pour analyser votre profil d'athlète hybride" />
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+      <SectionHeader icon="🔬" title="Métriques de Performance" sub="Zones FC Karvonen personnalisées · VO2max estimé · économie de course" />
+      <div style={S.grid2}>
         <div style={S.card}>
-          <h2 style={S.h2}>Paramètres</h2>
-          {[
-            { label: "Allure (min/km)", val: pace, set: setPace, type: "text", placeholder: "5:00" },
-            { label: `Poids: ${weight} kg`, val: weight, set: setWeight, type: "range", min: 40, max: 120 },
-            { label: `FC actuelle: ${hr} bpm`, val: hr, set: setHr, type: "range", min: 100, max: 210 },
-            { label: `FC max: ${maxHr} bpm`, val: maxHr, set: setMaxHr, type: "range", min: 150, max: 220 },
-          ].map((f) => (
-            <div key={f.label} style={{ marginBottom: "1rem" }}>
-              <label style={S.label}>{f.label}</label>
-              {f.type === "text" ? (
-                <input style={S.input} value={f.val}
-                  onChange={(e) => f.set(e.target.value)} placeholder={f.placeholder} />
-              ) : (
-                <input type="range" min={f.min} max={f.max}
-                  value={f.val} onChange={(e) => f.set(parseFloat(e.target.value))}
-                  style={{ width: "100%", accentColor: C.accent }} />
-              )}
-            </div>
-          ))}
+          <h2 style={S.h2}>Profil athlète</h2>
+          <TabToggle options={[["m","Homme"],["f","Femme"]]} value={sex} onChange={setSex} />
+          <RangeRow label="Âge" val={age} set={setAge} min={15} max={80} unit=" ans" />
+          <RangeRow label="Poids" val={weight} set={setWeight} min={40} max={130} unit=" kg" />
+          <label style={S.label}>Allure de référence</label>
+          <input style={{ ...S.input, marginBottom: "1rem" }} value={pace} onChange={(e) => setPace(e.target.value)} placeholder="5:00" />
+          <RangeRow label="FC repos" val={hrRest} set={setHrRest} min={35} max={90} unit=" bpm" />
+          <RangeRow label="FC max" val={hrMax} set={setHrMax} min={150} max={220} unit=" bpm" />
+          <RangeRow label="FC actuelle / effort" val={hrCurrent} set={setHrCurrent} min={hrRest} max={hrMax} unit=" bpm" />
         </div>
 
         <div style={S.card}>
-          <h2 style={S.h2}>Profil athlète</h2>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-            {metrics.map((m, i) => (
-              <div key={i} style={{ flex: "1 1 140px" }}>
-                <div style={{ ...S.metric(m.color) }}>
-                  <div style={{ ...S.metricVal, color: m.color, fontSize: 22 }}>{m.val}</div>
-                  <div style={S.metricLabel}>{m.unit}</div>
-                  <div style={{ height: 4, background: C.border, borderRadius: 4, marginTop: 8, overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", width: `${(m.val / m.max) * 100}%`,
-                      background: m.color, borderRadius: 4,
-                      transition: "width 0.5s cubic-bezier(.4,0,.2,1)",
-                    }} />
-                  </div>
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>{m.label}</div>
+          <h2 style={S.h2}>Indicateurs calculés</h2>
+          <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+            <div style={{ ...S.metric(C.accent), flex: "1 1 100px" }}>
+              <div style={{ ...S.metricVal, color: C.accent }}>{vo2adj}</div>
+              <div style={S.metricLabel}>VO2max estimé</div>
+              <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>ml/kg/min</div>
+            </div>
+            <div style={{ ...S.metric(C.info), flex: "1 1 100px" }}>
+              <div style={{ ...S.metricVal, color: C.info }}>{economyScore}</div>
+              <div style={S.metricLabel}>Économie course</div>
+              <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>/100</div>
+            </div>
+            <div style={{ ...S.metric(C.danger), flex: "1 1 100px" }}>
+              <div style={{ ...S.metricVal, color: C.danger }}>{fatigueIdx}</div>
+              <div style={S.metricLabel}>Index fatigue</div>
+              <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>/100</div>
+            </div>
+          </div>
+
+          <div style={S.divider} />
+          <h2 style={S.h2}>Zones FC — méthode Karvonen</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {zones.map((z, i) => (
+              <div key={i} style={{ padding: "8px 10px", background: z.inZone ? `${z.c}18` : C.surface2, border: `1px solid ${z.inZone ? z.c : C.border}`, borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: z.c }}>{z.z}</span>
+                  {z.inZone && <span style={{ ...S.badge(z.c), marginLeft: 6, fontSize: 9 }}>ACTUELLE</span>}
                 </div>
+                <span style={{ fontSize: 12, fontFamily: "monospace", color: C.text }}>{z.loHr}–{z.hiHr} bpm</span>
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      <div style={S.card}>
-        <h2 style={S.h2}>Analyse des zones de fréquence cardiaque</h2>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          {[
-            { zone: "Z1", range: "50–60%", label: "Récupération active", pct: [50, 60] },
-            { zone: "Z2", range: "60–70%", label: "Endurance de base", pct: [60, 70] },
-            { zone: "Z3", range: "70–80%", label: "Aerobic modéré", pct: [70, 80] },
-            { zone: "Z4", range: "80–90%", label: "Seuil anaérobique", pct: [80, 90] },
-            { zone: "Z5", range: "90–100%", label: "VO2max", pct: [90, 100] },
-          ].map((z, i) => {
-            const inZone = hrPct >= z.pct[0] && hrPct < z.pct[1];
-            const colors = [C.info, C.accent, C.warning, "#FF7A40", C.danger];
-            return (
-              <div key={i} style={{
-                flex: "1 1 140px", padding: "0.75rem 1rem",
-                background: inZone ? `${colors[i]}18` : C.surface2,
-                border: `1px solid ${inZone ? colors[i] : C.border}`,
-                borderRadius: 10,
-              }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: colors[i] }}>{z.zone}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>{z.range} FCmax</div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{z.label}</div>
-                {inZone && <div style={{ ...S.badge(colors[i]), marginTop: 6 }}>Actuelle</div>}
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── TABS config ─────────────────────────────────────────────────────────────
+// ─── TABS ─────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: "converter", label: "Allure & Vitesse" },
-  { id: "simulator", label: "Simulateur Hybride" },
-  { id: "strategy", label: "Stratégie" },
-  { id: "nutrition", label: "Nutrition" },
-  { id: "dashboard", label: "Tableau de Bord" },
-  { id: "metrics", label: "Métriques" },
+  { id: "converter", label: "Allure",    icon: "⚡" },
+  { id: "hybrid",    label: "Hybride",   icon: "🏁" },
+  { id: "running",   label: "Course",    icon: "🏃" },
+  { id: "strategy",  label: "Stratégie", icon: "📊" },
+  { id: "nutrition", label: "Nutrition", icon: "🍬" },
+  { id: "dashboard", label: "Bord",      icon: "📈" },
+  { id: "metrics",   label: "Métriques", icon: "🔬" },
 ];
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("converter");
-  const [records, setRecords] = useState(() => loadData().records || []);
+  const [records, setRecords] = useState(() => load().records || []);
 
-  useEffect(() => {
-    saveData({ records });
-  }, [records]);
+  useEffect(() => { save({ records }); }, [records]);
 
-  const handleSave = useCallback((record) => {
-    setRecords((prev) => [...prev, record]);
+  const handleSave = useCallback((r) => {
+    setRecords((prev) => [...prev, r]);
     setTab("dashboard");
+  }, []);
+
+  const handleClear = useCallback(() => {
+    if (window.confirm("Effacer tout l'historique des sessions ?")) setRecords([]);
   }, []);
 
   const renderPage = () => {
     switch (tab) {
-      case "converter": return <PaceConverter />;
-      case "simulator": return <RaceSimulator onSave={handleSave} />;
-      case "strategy": return <StrategyAnalyzer />;
-      case "nutrition": return <NutritionCalc />;
-      case "dashboard": return <Dashboard records={records} />;
-      case "metrics": return <PerformanceMetrics />;
-      default: return null;
+      case "converter":  return <PaceConverter />;
+      case "hybrid":     return <RaceSimulator onSave={handleSave} />;
+      case "running":    return <RunSimulator />;
+      case "strategy":   return <StrategyAnalyzer />;
+      case "nutrition":  return <NutritionCalc />;
+      case "dashboard":  return <Dashboard records={records} onClear={handleClear} />;
+      case "metrics":    return <PerformanceMetrics />;
+      default:           return null;
     }
   };
 
   return (
     <div style={S.app}>
-      {/* Navigation */}
-      <nav style={S.nav}>
+      <nav style={S.topBar}>
         <div style={S.logo}>
-          <span style={{ fontSize: 20 }}>⚡</span>
+          <span>⚡</span>
           <span>Hybrid Race Pace Lab</span>
         </div>
-        <div style={{ display: "flex", gap: 4, overflowX: "auto" }}>
-          {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={S.navBtn(tab === t.id)}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <span style={{ fontSize: 11, color: C.muted }}>by Marck Roger</span>
       </nav>
 
-      {/* Page content */}
-      <main style={S.page}>
-        {renderPage()}
-      </main>
+      <main style={S.page}>{renderPage()}</main>
 
-      {/* Footer */}
-      <footer style={S.footer}>
-        <div style={{ marginBottom: 4, fontWeight: 600, letterSpacing: "0.12em", color: C.accent }}>
-          HYBRID RACE PACE LAB
-        </div>
-        <div>Outil personnel de performance hybride · Non affilié à une organisation officielle</div>
-        <div style={{ marginTop: 6, color: C.muted }}>Créé par <span style={{ color: C.text, fontWeight: 600 }}>Marck Roger</span></div>
+      <footer style={{ textAlign: "center", padding: "1.5rem 1rem 5.5rem", color: C.muted, fontSize: 11, letterSpacing: "0.06em", borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontWeight: 700, color: C.accent, letterSpacing: "0.12em", marginBottom: 3 }}>HYBRID RACE PACE LAB</div>
+        <div>Outil personnel · Non affilié à une organisation officielle</div>
+        <div style={{ marginTop: 4 }}>Créé par <span style={{ color: C.text, fontWeight: 600 }}>Marck Roger</span></div>
       </footer>
+
+      <nav style={S.bottomNav}>
+        {TABS.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={S.bottomBtn(tab === t.id)}>
+            <span style={{ fontSize: 18 }}>{t.icon}</span>
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <CookieBanner />
     </div>
   );
 }
