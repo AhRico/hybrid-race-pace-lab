@@ -42,48 +42,51 @@ const lsLoad = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; 
 const lsSave = (d) => { try { localStorage.setItem(LS, JSON.stringify(d)); } catch {} };
 
 // ─── Station data (poids standards compétition hybride officielle) ────────────
-// mRx = Homme Pro · fRx = Femme Pro · mSc = Homme Open · fSc = Femme Open · mx = Mixte Pro
+// mRx = Homme Pro · fRx = Femme Pro · mSc = Homme Open · fSc = Femme Open
+// mxRx = Mixte Pro (RX) · mxSc = Mixte Scaled (Open)
+// Règle : Open Homme = Pro Femme (mSc = fRx)
 const STATIONS = [
   { id: "skierg",   name: "SkiErg",            icon: "🎿", dist: "1 000 m",
-    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mx: "—" },
-    defaultTime: { mRx: 270, fRx: 300, mSc: 250, fSc: 275, mx: 285 },
+    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mxRx: "—", mxSc: "—" },
+    defaultTime: { mRx: 270, fRx: 300, mSc: 300, fSc: 275, mxRx: 285, mxSc: 288 },
     tip: "Ergomètre ski 1 000 m. Pas de charge — effort cardio-respiratoire intense." },
   { id: "sledpush", name: "Sled Push",          icon: "🏋️", dist: "50 m × 8",
-    weights: { mRx: "152 kg", fRx: "102 kg", mSc: "102 kg", fSc: "72 kg", mx: "152 kg / 102 kg" },
-    defaultTime: { mRx: 240, fRx: 210, mSc: 200, fSc: 185, mx: 225 },
-    tip: "Pousser le traîneau 50 m (poids traîneau inclus ~46 kg). Pro H : 152 kg · Pro F : 102 kg · Open H : 102 kg · Open F : 72 kg." },
+    weights: { mRx: "202 kg", fRx: "152 kg", mSc: "152 kg", fSc: "102 kg", mxRx: "202 kg / 152 kg", mxSc: "152 kg / 102 kg" },
+    defaultTime: { mRx: 260, fRx: 225, mSc: 225, fSc: 200, mxRx: 243, mxSc: 213 },
+    tip: "Pousser le traîneau 50 m. Pro H : 202 kg · Pro F & Open H : 152 kg · Open F : 102 kg." },
   { id: "sledpull", name: "Sled Pull",          icon: "💪", dist: "50 m × 8",
-    weights: { mRx: "103 kg", fRx: "78 kg", mSc: "78 kg", fSc: "58 kg", mx: "103 kg / 78 kg" },
-    defaultTime: { mRx: 210, fRx: 190, mSc: 180, fSc: 160, mx: 200 },
-    tip: "Tirer le traîneau à la corde 50 m. Pro H : 103 kg · Pro F : 78 kg · Open H : 78 kg · Open F : 58 kg." },
+    weights: { mRx: "153 kg", fRx: "152 kg", mSc: "152 kg", fSc: "78 kg", mxRx: "153 kg / 152 kg", mxSc: "152 kg / 78 kg" },
+    defaultTime: { mRx: 215, fRx: 210, mSc: 210, fSc: 175, mxRx: 213, mxSc: 193 },
+    tip: "Tirer le traîneau à la corde 50 m. Pro H : 153 kg · Pro F & Open H : 152 kg · Open F : 78 kg." },
   { id: "burpee",   name: "Burpee Broad Jumps", icon: "🏃", dist: "80 m",
-    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mx: "—" },
-    defaultTime: { mRx: 240, fRx: 220, mSc: 205, fSc: 190, mx: 230 },
+    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mxRx: "—", mxSc: "—" },
+    defaultTime: { mRx: 240, fRx: 220, mSc: 220, fSc: 190, mxRx: 230, mxSc: 205 },
     tip: "Burpees avec saut en longueur sur 80 m. Pas de charge — station très éprouvante cardio." },
   { id: "rowing",   name: "Rowing",             icon: "🚣", dist: "1 000 m",
-    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mx: "—" },
-    defaultTime: { mRx: 270, fRx: 290, mSc: 255, fSc: 268, mx: 280 },
+    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mxRx: "—", mxSc: "—" },
+    defaultTime: { mRx: 270, fRx: 290, mSc: 290, fSc: 268, mxRx: 280, mxSc: 279 },
     tip: "Ergomètre à rames 1 000 m. Pas de charge — technique essentielle pour maintenir l'efficacité." },
   { id: "farmer",   name: "Farmer Carry",       icon: "🧳", dist: "200 m",
-    weights: { mRx: "2 × 24 kg", fRx: "2 × 16 kg", mSc: "2 × 16 kg", fSc: "2 × 12 kg", mx: "2 × 24 kg / 2 × 16 kg" },
-    defaultTime: { mRx: 180, fRx: 165, mSc: 160, fSc: 145, mx: 173 },
-    tip: "Farmer Carry 200 m kettlebells. Pro H : 2×24 kg · Pro F : 2×16 kg · Open H : 2×16 kg · Open F : 2×12 kg." },
+    weights: { mRx: "2 × 32 kg", fRx: "2 × 24 kg", mSc: "2 × 24 kg", fSc: "2 × 16 kg", mxRx: "2 × 32 kg / 2 × 24 kg", mxSc: "2 × 24 kg / 2 × 16 kg" },
+    defaultTime: { mRx: 195, fRx: 175, mSc: 175, fSc: 155, mxRx: 185, mxSc: 165 },
+    tip: "Farmer Carry 200 m kettlebells. Pro H : 2×32 kg · Pro F & Open H : 2×24 kg · Open F : 2×16 kg." },
   { id: "sandbag",  name: "Sandbag Lunges",     icon: "⚡", dist: "100 m",
-    weights: { mRx: "20 kg", fRx: "10 kg", mSc: "15 kg", fSc: "10 kg", mx: "20 kg / 10 kg" },
-    defaultTime: { mRx: 275, fRx: 245, mSc: 245, fSc: 220, mx: 260 },
-    tip: "Fentes avec sac de sable 100 m. Pro H : 20 kg · Pro F : 10 kg · Open H : 15 kg · Open F : 10 kg." },
+    weights: { mRx: "30 kg", fRx: "20 kg", mSc: "20 kg", fSc: "10 kg", mxRx: "30 kg / 20 kg", mxSc: "20 kg / 10 kg" },
+    defaultTime: { mRx: 290, fRx: 255, mSc: 255, fSc: 225, mxRx: 273, mxSc: 240 },
+    tip: "Fentes avec sac de sable 100 m. Pro H : 30 kg · Pro F & Open H : 20 kg · Open F : 10 kg." },
   { id: "wallball", name: "Wall Balls",         icon: "🏀", dist: "100 reps",
-    weights: { mRx: "6 kg / cible 9ft", fRx: "4 kg / cible 9ft", mSc: "6 kg / cible 7,5ft", fSc: "4 kg / cible 7,5ft", mx: "6 kg+4 kg / cible 9ft" },
-    defaultTime: { mRx: 240, fRx: 215, mSc: 215, fSc: 195, mx: 228 },
-    tip: "100 lancers medball contre cible murale. Pro : cible 9ft · Open : cible 7,5ft. Station finale — gestion de l'effort cruciale." },
+    weights: { mRx: "9 kg / cible 9ft", fRx: "6 kg / cible 9ft", mSc: "6 kg / cible 7,5ft", fSc: "4 kg / cible 7,5ft", mxRx: "9 kg + 6 kg / cible 9ft", mxSc: "6 kg + 4 kg / cible 7,5ft" },
+    defaultTime: { mRx: 255, fRx: 230, mSc: 230, fSc: 205, mxRx: 243, mxSc: 218 },
+    tip: "100 lancers medball. Pro H : 9 kg · Pro F & Open H : 6 kg · Open F : 4 kg. Pro : cible 9ft · Open : cible 7,5ft." },
 ];
 const ST_COLORS = ["#4DA6FF","#00E5A0","#FFB84D","#FF5C6A","#C084FC","#F472B6","#34D399","#FBBF24"];
 const CATS = {
-  mRx: "Homme RX (Pro)",
-  fRx: "Femme RX (Pro)",
-  mSc: "Homme Scaled (Open)",
-  fSc: "Femme Scaled (Open)",
-  mx:  "Mixte (Pro)",
+  mRx:  "Homme RX (Pro)",
+  fRx:  "Femme RX (Pro)",
+  mSc:  "Homme Scaled (Open)",
+  fSc:  "Femme Scaled (Open)",
+  mxRx: "Mixte RX (Pro)",
+  mxSc: "Mixte Scaled (Open)",
 };
 
 // ─── Quick presets ────────────────────────────────────────────────────────────
@@ -327,6 +330,80 @@ ${rows.map(([sec, data]) => `<h2>${sec}</h2><table>
   w.document.close();
 }
 
+// ─── Feedback modal ───────────────────────────────────────────────────────────
+function FeedbackModal({ onClose }) {
+  const [rating, setRating] = useState(0);
+  const [msg, setMsg] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | sending | done | error
+
+  const submit = async () => {
+    if (rating === 0) return;
+    setStatus("sending");
+    try {
+      const res = await fetch("https://formspree.io/f/meenbeyk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ rating, message: msg }),
+      });
+      setStatus(res.ok ? "done" : "error");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "1.5rem", maxWidth: 360, width: "100%", boxShadow: "0 16px 48px #000c" }}>
+        {status === "done" ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 40, marginBottom: "0.75rem" }}>🎉</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: C.accent, marginBottom: 6 }}>Merci pour ton avis !</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: "1.25rem" }}>Ton retour aide à améliorer l'outil.</div>
+            <button style={S.btn()} onClick={onClose}>Fermer</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h2 style={{ ...S.h2, margin: 0 }}>⭐ Donner un avis</h2>
+              <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: "0.875rem" }}>
+              Ton avis est envoyé via <strong style={{ color: C.text }}>Formspree</strong> (service tiers). Il n'est pas lié à ton profil et ne contient aucune donnée personnelle identifiante.
+            </div>
+            <label style={S.label}>Note globale</label>
+            <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
+              {[1,2,3,4,5].map(n => (
+                <button key={n} onClick={() => setRating(n)}
+                  style={{ flex: 1, fontSize: 22, background: n <= rating ? `${C.accent}22` : C.surface2, border: `1px solid ${n <= rating ? C.accent : C.border}`, borderRadius: 8, padding: "6px 0", cursor: "pointer", transition: "all 0.15s" }}>
+                  {n <= rating ? "⭐" : "☆"}
+                </button>
+              ))}
+            </div>
+            <label style={S.label}>Commentaire (optionnel)</label>
+            <textarea
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              placeholder="Dis-nous ce que tu en penses…"
+              rows={3}
+              style={{ ...S.input, resize: "vertical", marginBottom: "1rem", lineHeight: 1.5 }}
+            />
+            {status === "error" && (
+              <div style={{ fontSize: 12, color: C.danger, marginBottom: "0.75rem" }}>Une erreur s'est produite. Réessaie.</div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={{ ...S.btn("p"), flex: 1, opacity: rating === 0 || status === "sending" ? 0.5 : 1 }}
+                onClick={submit} disabled={rating === 0 || status === "sending"}>
+                {status === "sending" ? "Envoi…" : "Envoyer"}
+              </button>
+              <button style={S.btn()} onClick={onClose}>Annuler</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Cookie banner ────────────────────────────────────────────────────────────
 function CookieBanner() {
   const [on, setOn] = useState(() => !localStorage.getItem("hrpl_ck"));
@@ -334,7 +411,7 @@ function CookieBanner() {
   return (
     <div style={{ position: "fixed", bottom: 74, left: 10, right: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "0.875rem 1rem", zIndex: 300, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", boxShadow: "0 8px 32px #000a" }}>
       <span style={{ flex: 1, fontSize: 12, color: C.muted, minWidth: 200 }}>
-        🍪 Cette app utilise uniquement le <strong style={{ color: C.text }}>localStorage</strong> de votre navigateur. Aucune donnée n'est envoyée à un serveur.
+        🍪 Cette app utilise le <strong style={{ color: C.text }}>localStorage</strong> pour sauvegarder tes préférences (aucune donnée envoyée à nos serveurs). Si tu choisis de laisser un avis, celui-ci est transmis à <strong style={{ color: C.text }}>Formspree</strong>, un service tiers d'envoi de formulaires.
       </span>
       <div style={{ display: "flex", gap: 8 }}>
         <button style={S.btn("p")} onClick={() => { localStorage.setItem("hrpl_ck", "1"); setOn(false); }}>Accepter</button>
@@ -430,16 +507,16 @@ function PaceConverter() {
 // ══════════════════════════════════════════════════════════════════════════════
 function RaceSimulator() {
   const [pace, setPace] = useState("5:30");
-  const [cat, setCat] = useState("mRx");
+  const [cat, setCat] = useState("fSc");
   const [format, setFormat] = useState("solo");
   const [transition, setTransition] = useState(15);
   const [fatigue, setFatigue] = useState(1.08);
 
   const [times, setTimes] = useState(() =>
-    Object.fromEntries(STATIONS.map(s => [s.id, s.defaultTime?.mRx ?? 60]))
+    Object.fromEntries(STATIONS.map(s => [s.id, s.defaultTime?.fSc ?? 60]))
   );
 
-  const isMixed = cat.startsWith("mx");
+  const isMixed = cat === "mxRx" || cat === "mxSc";
 
   // Force format constraints for mixed categories
   useEffect(() => {
@@ -455,7 +532,7 @@ function RaceSimulator() {
         STATIONS.map(s => [
           s.id,
           s.defaultTime?.[cat] ??
-          s.defaultTime?.mRx ??
+          s.defaultTime?.fSc ??
           60
         ])
       )
@@ -582,12 +659,12 @@ function RaceSimulator() {
               value={cat}
               onChange={e => setCat(e.target.value)}
             >
-              <option value="mRx">Homme RX</option>
-              <option value="fRx">Femme RX</option>
-              <option value="mSc">Homme Scaled</option>
-              <option value="fSc">Femme Scaled</option>
-              <option value="mxRx">Mixte RX</option>
-              <option value="mxSc">Mixte Scaled</option>
+              <option value="fSc">Femme Scaled (Open)</option>
+              <option value="mSc">Homme Scaled (Open)</option>
+              <option value="fRx">Femme RX (Pro)</option>
+              <option value="mRx">Homme RX (Pro)</option>
+              <option value="mxSc">Mixte Scaled (Open)</option>
+              <option value="mxRx">Mixte RX (Pro)</option>
             </select>
           </div>
 
@@ -598,7 +675,7 @@ function RaceSimulator() {
               value={format}
               onChange={e => setFormat(e.target.value)}
             >
-              <option value="solo" disabled={isMixed}>Solo</option>
+              <option value="solo" disabled={isMixed}>Solo{isMixed ? " (non disponible en mixte)" : ""}</option>
               <option value="doubles">Doubles</option>
               <option value="relay">Relais</option>
             </select>
@@ -638,7 +715,7 @@ function RaceSimulator() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "0.6rem" }}>
           {STATIONS.map((s, i) => {
-            const target = s.targets?.[cat] ?? s.targets?.mRx ?? "—";
+            const weight = s.weights?.[cat] ?? "—";
 
             return (
               <div key={s.id} style={{ background: C.surface2, padding: 12, borderRadius: 10 }}>
@@ -648,7 +725,7 @@ function RaceSimulator() {
                 </div>
 
                 <div style={{ fontSize: 12, marginTop: 4 }}>
-                  🎯 {target}
+                  🎯 {weight}
                 </div>
 
                 <MmSsInput
@@ -1190,6 +1267,7 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab] = useState("converter");
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const renderPage = () => {
     switch (tab) {
@@ -1210,6 +1288,12 @@ export default function App() {
           <span>⚡</span>
           <span>Hybrid Race Pace Lab</span>
         </div>
+        <button
+          onClick={() => setShowFeedback(true)}
+          style={{ marginLeft: "auto", ...S.btn(), fontSize: 11, padding: "5px 12px" }}
+        >
+          ⭐ Avis
+        </button>
       </nav>
 
       <main style={S.page}>{renderPage()}</main>
@@ -1229,6 +1313,7 @@ export default function App() {
       </nav>
 
       <CookieBanner />
+      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
     </div>
   );
 }
