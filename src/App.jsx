@@ -473,7 +473,14 @@ function RaceSimulator() {
   }, [total]);
 
   // Race insight
-  const force = runPct > 55 ? "Bon profil coureur — la course ne t'handicape pas." : "Profil bien équilibré course / stations.";
+  const force =
+  kmh >= 13
+    ? "🔥 Excellent profil coureur — la course est un vrai point fort."
+    : kmh >= 11.5
+      ? "💪 Bon profil coureur — la course ne t'handicape pas."
+      : kmh >= 10
+        ? "⚠️ Profil équilibré mais la course peut devenir limitante."
+        : "🏃 Gros axe de progression en course à pied.";
   const risk = fatigue > 1.15 ? `Fatigue progressive élevée — risque de ralentissement fort après le km 5.` : trTime > 150 ? `Transitions longues (${fmtTime(trTime)} cumulé) — marge facile à gagner.` : `Station ${worstStation.name} la plus lourde — prépare-la spécifiquement.`;
   const optim = trTime > 150
     ? `Réduire les transitions à 10 s = économie de ${fmtTime(trTime - 80)} sur l'ensemble.`
