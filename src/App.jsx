@@ -646,8 +646,8 @@ function RunSimulator() {
 
   const getTimeAt = (km) => {
     const drift = splitMode === "pos"
-      ? 1 + (km / KM) * (driftPct / 100)   // slows down
-      : 1 - (km / KM) * (driftPct / 100);   // speeds up
+  ? 1 - (km / KM) * (driftPct / 100) // slow down
+  : 1 + (km / KM) * (driftPct / 100);  // speeds up
     return (km / (kmh * drift)) * 3600;
   };
 
