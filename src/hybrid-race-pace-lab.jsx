@@ -41,43 +41,50 @@ const LS = "hrpl_v3";
 const lsLoad = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; } };
 const lsSave = (d) => { try { localStorage.setItem(LS, JSON.stringify(d)); } catch {} };
 
-// ─── HYROX Station data (official weights) ────────────────────────────────────
+// ─── Station data (poids standards compétition hybride officielle) ────────────
+// mRx = Homme Pro · fRx = Femme Pro · mSc = Homme Open · fSc = Femme Open · mx = Mixte Pro
 const STATIONS = [
   { id: "skierg",   name: "SkiErg",            icon: "🎿", dist: "1 000 m",
-    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—" },
-    defaultTime: { mRx: 270, fRx: 300, mSc: 250, fSc: 275 },
-    tip: "Exercice cardio sur machine de ski. Pas de poids — effort respiratoire intense." },
+    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mx: "—" },
+    defaultTime: { mRx: 270, fRx: 300, mSc: 250, fSc: 275, mx: 285 },
+    tip: "Ergomètre ski 1 000 m. Pas de charge — effort cardio-respiratoire intense." },
   { id: "sledpush", name: "Sled Push",          icon: "🏋️", dist: "50 m × 8",
-    weights: { mRx: "152 kg", fRx: "102 kg", mSc: "102 kg", fSc: "72 kg" },
-    defaultTime: { mRx: 240, fRx: 210, mSc: 200, fSc: 185 },
-    tip: "Pousser le traîneau sur 50 m. Poids total inclut le traîneau (~46 kg)." },
+    weights: { mRx: "152 kg", fRx: "102 kg", mSc: "102 kg", fSc: "72 kg", mx: "152 kg / 102 kg" },
+    defaultTime: { mRx: 240, fRx: 210, mSc: 200, fSc: 185, mx: 225 },
+    tip: "Pousser le traîneau 50 m (poids traîneau inclus ~46 kg). Pro H : 152 kg · Pro F : 102 kg · Open H : 102 kg · Open F : 72 kg." },
   { id: "sledpull", name: "Sled Pull",          icon: "💪", dist: "50 m × 8",
-    weights: { mRx: "103 kg", fRx: "78 kg",  mSc: "78 kg",  fSc: "58 kg" },
-    defaultTime: { mRx: 210, fRx: 190, mSc: 180, fSc: 160 },
-    tip: "Tirer le traîneau avec une corde. Engage fortement le dos et les biceps." },
+    weights: { mRx: "103 kg", fRx: "78 kg", mSc: "78 kg", fSc: "58 kg", mx: "103 kg / 78 kg" },
+    defaultTime: { mRx: 210, fRx: 190, mSc: 180, fSc: 160, mx: 200 },
+    tip: "Tirer le traîneau à la corde 50 m. Pro H : 103 kg · Pro F : 78 kg · Open H : 78 kg · Open F : 58 kg." },
   { id: "burpee",   name: "Burpee Broad Jumps", icon: "🏃", dist: "80 m",
-    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—" },
-    defaultTime: { mRx: 240, fRx: 220, mSc: 205, fSc: 190 },
-    tip: "Burpees avec saut en longueur sur 80 m. Station très éprouvante." },
+    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mx: "—" },
+    defaultTime: { mRx: 240, fRx: 220, mSc: 205, fSc: 190, mx: 230 },
+    tip: "Burpees avec saut en longueur sur 80 m. Pas de charge — station très éprouvante cardio." },
   { id: "rowing",   name: "Rowing",             icon: "🚣", dist: "1 000 m",
-    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—" },
-    defaultTime: { mRx: 270, fRx: 290, mSc: 255, fSc: 268 },
-    tip: "Ergomètre à rames. Technique essentielle pour maintenir l'efficacité." },
+    weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mx: "—" },
+    defaultTime: { mRx: 270, fRx: 290, mSc: 255, fSc: 268, mx: 280 },
+    tip: "Ergomètre à rames 1 000 m. Pas de charge — technique essentielle pour maintenir l'efficacité." },
   { id: "farmer",   name: "Farmer Carry",       icon: "🧳", dist: "200 m",
-    weights: { mRx: "2 × 24 kg", fRx: "2 × 16 kg", mSc: "2 × 20 kg", fSc: "2 × 12 kg" },
-    defaultTime: { mRx: 180, fRx: 165, mSc: 160, fSc: 145 },
-    tip: "Marcher avec deux kettlebells sur 200 m. Grip et gainage sollicités." },
+    weights: { mRx: "2 × 24 kg", fRx: "2 × 16 kg", mSc: "2 × 16 kg", fSc: "2 × 12 kg", mx: "2 × 24 kg / 2 × 16 kg" },
+    defaultTime: { mRx: 180, fRx: 165, mSc: 160, fSc: 145, mx: 173 },
+    tip: "Farmer Carry 200 m kettlebells. Pro H : 2×24 kg · Pro F : 2×16 kg · Open H : 2×16 kg · Open F : 2×12 kg." },
   { id: "sandbag",  name: "Sandbag Lunges",     icon: "⚡", dist: "100 m",
-    weights: { mRx: "20 kg", fRx: "10 kg", mSc: "15 kg", fSc: "10 kg" },
-    defaultTime: { mRx: 275, fRx: 245, mSc: 245, fSc: 220 },
-    tip: "Fentes avec sac de sable sur 100 m. Station très coûteuse en énergie." },
+    weights: { mRx: "20 kg", fRx: "10 kg", mSc: "15 kg", fSc: "10 kg", mx: "20 kg / 10 kg" },
+    defaultTime: { mRx: 275, fRx: 245, mSc: 245, fSc: 220, mx: 260 },
+    tip: "Fentes avec sac de sable 100 m. Pro H : 20 kg · Pro F : 10 kg · Open H : 15 kg · Open F : 10 kg." },
   { id: "wallball", name: "Wall Balls",         icon: "🏀", dist: "100 reps",
-    weights: { mRx: "6 kg / 9 ft", fRx: "4 kg / 9 ft", mSc: "6 kg / 7.5 ft", fSc: "4 kg / 7.5 ft" },
-    defaultTime: { mRx: 240, fRx: 215, mSc: 215, fSc: 195 },
-    tip: "Lancer un medball contre le mur × 100. Station finale — gestion de l'effort cruciale." },
+    weights: { mRx: "6 kg / cible 9ft", fRx: "4 kg / cible 9ft", mSc: "6 kg / cible 7,5ft", fSc: "4 kg / cible 7,5ft", mx: "6 kg+4 kg / cible 9ft" },
+    defaultTime: { mRx: 240, fRx: 215, mSc: 215, fSc: 195, mx: 228 },
+    tip: "100 lancers medball contre cible murale. Pro : cible 9ft · Open : cible 7,5ft. Station finale — gestion de l'effort cruciale." },
 ];
 const ST_COLORS = ["#4DA6FF","#00E5A0","#FFB84D","#FF5C6A","#C084FC","#F472B6","#34D399","#FBBF24"];
-const CATS = { mRx: "Homme RX", fRx: "Femme RX", mSc: "Homme Scaled", fSc: "Femme Scaled" };
+const CATS = {
+  mRx: "Homme RX (Pro)",
+  fRx: "Femme RX (Pro)",
+  mSc: "Homme Scaled (Open)",
+  fSc: "Femme Scaled (Open)",
+  mx:  "Mixte (Pro)",
+};
 
 // ─── Quick presets ────────────────────────────────────────────────────────────
 const PRESETS = {
@@ -421,7 +428,7 @@ function PaceConverter() {
 // ══════════════════════════════════════════════════════════════════════════════
 // 2. HYBRID RACE SIMULATOR
 // ══════════════════════════════════════════════════════════════════════════════
-function RaceSimulator({ onSave }) {
+function RaceSimulator() {
   const [pace, setPace] = useState("5:30");
   const [cat, setCat] = useState("mRx");
   const [format, setFormat] = useState("solo");
@@ -473,7 +480,7 @@ function RaceSimulator({ onSave }) {
     : `Améliorer ${worstStation.name} de 20 % = −${fmtTime(times[worstStation.id] * 0.2)} sur le chrono.`;
 
   const handleExportPDF = () => {
-    exportPDF(`Simulation ${CATS[cat]} — ${format} — ${fmtTime(total)}`, [
+    exportPDF(`Plan de course — ${CATS[cat]} — ${format} — ${fmtTime(total)}`, [
       ["Résumé", [
         { Segment: "Course (8 × 1 km)", Durée: fmtTime(runTime), "%": `${runPct}%` },
         { Segment: "Stations (× 8)", Durée: fmtTime(stTime), "%": `${(stTime / total * 100).toFixed(0)}%` },
@@ -486,6 +493,12 @@ function RaceSimulator({ onSave }) {
         "Temps saisi": fmtMmSs(times[s.id]),
         "Avec fatigue": fmtMmSs(Math.round(times[s.id] * fatigue)),
       }))],
+      ["Analyse coach", [
+        { Axe: "💪 Force", Analyse: force },
+        { Axe: "⚠️ Risque", Analyse: risk },
+        { Axe: "🎯 Optimisation", Analyse: optim },
+        { Axe: "🧠 Conseil global", Analyse: coachMsg },
+      ]],
     ]);
   };
 
@@ -507,9 +520,13 @@ function RaceSimulator({ onSave }) {
       <div style={S.card}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "0.875rem" }}>
           <div>
-            <label style={S.label}><Tip text="RX = poids et distances officiels compétition. Scaled = poids réduits, adapté aux débutants.">Catégorie</Tip></label>
+            <label style={S.label}><Tip text="RX (Pro) = poids et distances compétition. Scaled (Open) = poids réduits, adapté aux débutants. Mixte = équipe homme + femme.">Catégorie</Tip></label>
             <select style={S.input} value={cat} onChange={e => setCat(e.target.value)}>
-              {Object.entries(CATS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              <option value="mRx">Homme RX (Pro)</option>
+              <option value="fRx">Femme RX (Pro)</option>
+              <option value="mSc">Homme Scaled (Open)</option>
+              <option value="fSc">Femme Scaled (Open)</option>
+              <option value="mx">Mixte (Pro)</option>
             </select>
           </div>
           <div>
@@ -587,8 +604,7 @@ function RaceSimulator({ onSave }) {
           </div>
           <div style={S.coachBox}>🧠 <strong>Coach :</strong> {coachMsg}</div>
           <div style={{ display: "flex", gap: 8, marginTop: "0.75rem", flexWrap: "wrap" }}>
-            <button style={S.btn("p")} onClick={() => onSave?.({ pace, totalTime: total, format, cat, date: new Date().toISOString() })}>💾 Sauvegarder</button>
-            <button style={S.btn()} onClick={handleExportPDF}>📄 Exporter PDF</button>
+            <button style={S.btn()} onClick={handleExportPDF}>📄 Exporter le plan de course (PDF)</button>
           </div>
         </div>
 
@@ -628,336 +644,106 @@ function RunSimulator() {
     ? [5,10,15,21.0975]
     : [5,10,15,20,25,30,35,40,42.195];
 
-  // ─────────────────────────────────────────────────────
-  // Répartition réaliste du pacing
-  // Le pace entré = allure MOYENNE cible
-  // Le drift répartit l'effort autour de cette moyenne
-  // sans fausser artificiellement le chrono final
-  // ─────────────────────────────────────────────────────
-
-  const avgPaceSec = 3600 / kmh;
-
-  // amplitude totale entre début et fin
-  const driftFactor = driftPct / 100;
-
-  // allure instantanée à un km donné
-  const getInstantPace = (km) => {
-    const progress = km / KM;
-
-    let variation;
-
-    if (splitMode === "pos") {
-      // départ plus rapide → fin plus lente
-      variation = -driftFactor / 2 + progress * driftFactor;
-    } else {
-      // départ plus lent → fin plus rapide
-      variation = driftFactor / 2 - progress * driftFactor;
-    }
-
-    return avgPaceSec * (1 + variation);
-  };
-
-  // temps cumulé réel jusqu'à un checkpoint
-  const getTimeAt = (targetKm) => {
-    let total = 0;
-
-    // kilomètres entiers
-    for (let km = 1; km <= Math.floor(targetKm); km++) {
-      total += getInstantPace(km);
-    }
-
-    // portion décimale (semi / marathon)
-    const remaining = targetKm % 1;
-
-    if (remaining > 0) {
-      total += getInstantPace(targetKm) * remaining;
-    }
-
-    return total;
+  const getTimeAt = (km) => {
+    const drift = splitMode === "pos"
+      ? 1 + (km / KM) * (driftPct / 100)   // slows down
+      : 1 - (km / KM) * (driftPct / 100);   // speeds up
+    return (km / (kmh * drift)) * 3600;
   };
 
   const totalTime = getTimeAt(KM);
+  const wallKm = dist === "marathon" && splitMode === "pos" && driftPct > 8 ? Math.round(28 + (15 - driftPct) * 0.8) : null;
 
-  const splits = checkpoints.map((km) => {
-    const cumulative = getTimeAt(km);
-
-    return {
-      km,
-      time: cumulative,
-      pace: kmhToPace(3600 / getInstantPace(km)),
-    };
-  });
-
-  const wallKm =
-    dist === "marathon" &&
-    splitMode === "pos" &&
-    driftPct > 8
-      ? Math.round(28 + (15 - driftPct) * 0.8)
-      : null;
+  const splits = checkpoints.map(km => ({
+    km, time: getTimeAt(km),
+    pace: kmhToPace(km / (getTimeAt(km) / 3600)),
+  }));
 
   // Coach
   const coachMsg = useMemo(() => {
-    if (splitMode === "neg" && driftPct > 3)
-      return "💪 Split négatif avec accélération marquée — stratégie exigeante, assure-toi d'avoir les jambes pour finir fort.";
-
-    if (splitMode === "neg")
-      return "✅ Légère accélération en fin de course — stratégie classique de course bien gérée.";
-
-    if (driftPct > 8)
-      return "⚠️ Ralentissement fort prévu — surveille le mur. Départ trop agressif ?";
-
-    if (driftPct > 4)
-      return "🟡 Ralentissement modéré — pacing réaliste pour un effort soutenu.";
-
+    if (splitMode === "neg" && driftPct > 3) return "💪 Split négatif avec accélération marquée — stratégie exigeante, assure-toi d'avoir les jambes pour finir fort.";
+    if (splitMode === "neg") return "✅ Légère accélération en fin de course — stratégie classique de course bien gérée.";
+    if (driftPct > 8) return "⚠️ Ralentissement fort prévu — surveille le mur. Départ trop agressif ?";
+    if (driftPct > 4) return "🟡 Ralentissement modéré — pacing réaliste pour un effort soutenu.";
     return "✅ Pacing quasi-constant — excellent indicateur de maîtrise de l'allure.";
   }, [splitMode, driftPct]);
 
-  const refs =
-    dist === "10k"
-      ? [
-          ["Élite H", "~27 min"],
-          ["Élite F", "~30 min"],
-          ["Sub 40 min", "4:00/km"],
-          ["Sub 50 min", "5:00/km"],
-        ]
-      : dist === "semi"
-      ? [
-          ["Élite H", "~1h00"],
-          ["Élite F", "~1h05"],
-          ["Sub 1h30", "4:16/km"],
-          ["Sub 2h00", "5:41/km"],
-        ]
-      : [
-          ["Élite H", "~2h00"],
-          ["Élite F", "~2h14"],
-          ["Sub 3h00", "4:16/km"],
-          ["Sub 4h00", "5:41/km"],
-        ];
+  const refs = dist === "10k"
+    ? [["Élite H", "~27 min"], ["Élite F", "~30 min"], ["Sub 40 min", "4:00/km"], ["Sub 50 min", "5:00/km"]]
+    : dist === "semi"
+    ? [["Élite H", "~1h00"], ["Élite F", "~1h05"], ["Sub 1h30", "4:16/km"], ["Sub 2h00", "5:41/km"]]
+    : [["Élite H", "~2h00"], ["Élite F", "~2h14"], ["Sub 3h00", "4:16/km"], ["Sub 4h00", "5:41/km"]];
 
   const handleExportPDF = () => {
-    exportPDF(
-      `${dist === "10k"
-        ? "10 km"
-        : dist === "semi"
-        ? "Semi-marathon"
-        : "Marathon"} — ${fmtTime(totalTime)}`,
-      [
-        [
-          "Splits prévisionnels",
-          splits.map((s) => ({
-            Distance: `${s.km % 1 === 0 ? s.km : s.km.toFixed(1)} km`,
-            "Temps cumulé": fmtTime(s.time),
-            Allure: s.pace + "/km",
-          })),
-        ],
-      ]
-    );
+    const distLabel = dist === "10k" ? "10 km" : dist === "semi" ? "Semi-marathon" : "Marathon";
+    const stratLabel = splitMode === "pos" ? `Split positif — ralentissement ${driftPct}%` : `Split négatif — accélération ${driftPct}%`;
+    exportPDF(`${distLabel} — ${fmtTime(totalTime)} — ${stratLabel}`, [
+      ["Splits prévisionnels", splits.map(s => ({
+        "Distance": `${s.km % 1 === 0 ? s.km : s.km.toFixed(1)} km`,
+        "Temps cumulé": fmtTime(s.time),
+        "Allure": s.pace + "/km",
+      }))],
+      ["Analyse coach", [
+        { Axe: "Stratégie", Analyse: stratLabel },
+        { Axe: "Temps estimé", Analyse: fmtTime(totalTime) },
+        { Axe: "Allure moyenne", Analyse: kmhToPace(KM / (totalTime / 3600)) + "/km" },
+        { Axe: "🧠 Conseil", Analyse: coachMsg.replace(/[💪✅🟡⚠️]/g, "").trim() },
+        ...(wallKm ? [{ Axe: "⚠️ Risque", Analyse: `Mur possible vers le km ${wallKm} — départ conservateur recommandé.` }] : []),
+      ]],
+    ]);
   };
 
   return (
     <div>
-      <SectionHeader
-        icon="🏃"
-        title="Simulateur Course à Pied"
-        sub="10 km · semi-marathon · marathon — splits et stratégie de pacing"
-      />
-
+      <SectionHeader icon="🏃" title="Simulateur Course à Pied" sub="10 km · semi-marathon · marathon — splits et stratégie de pacing" />
       <div style={S.grid2}>
         <div style={S.card}>
-          <TabToggle
-            options={[
-              ["10k", "10 km"],
-              ["semi", "Semi"],
-              ["marathon", "Marathon"],
-            ]}
-            value={dist}
-            onChange={setDist}
-          />
-
+          <TabToggle options={[["10k","10 km"],["semi","Semi"],["marathon","Marathon"]]} value={dist} onChange={setDist} />
           <label style={S.label}>Allure cible (min/km)</label>
-
-          <input
-            style={{ ...S.input, marginBottom: "1rem" }}
-            value={pace}
-            onChange={(e) => setPace(e.target.value)}
-            placeholder="5:10"
-          />
+          <input style={{ ...S.input, marginBottom: "1rem" }} value={pace} onChange={e => setPace(e.target.value)} placeholder="5:10" />
 
           <label style={S.label}>
             <Tip text="Split positif = tu ralentis progressivement. Split négatif = tu accélères progressivement (plus difficile mais souvent plus efficace).">
               Stratégie de pacing
             </Tip>
           </label>
-
           <div style={{ display: "flex", gap: 5, marginBottom: "1rem" }}>
-            {[
-              ["pos", "Split positif (ralentissement)"],
-              ["neg", "Split négatif (accélération)"],
-            ].map(([k, l]) => (
-              <button
-                key={k}
-                onClick={() => setSplitMode(k)}
-                style={{
-                  flex: 1,
-                  padding: "7px 5px",
-                  borderRadius: 8,
-                  border: `1px solid ${
-                    splitMode === k ? C.accent : C.border
-                  }`,
-                  background:
-                    splitMode === k
-                      ? `${C.accent}18`
-                      : "transparent",
-                  color:
-                    splitMode === k
-                      ? C.accent
-                      : C.muted,
-                  fontSize: 11,
-                  fontWeight: splitMode === k ? 700 : 400,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {l}
-              </button>
+            {[["pos","Split positif (ralentissement)"],["neg","Split négatif (accélération)"]].map(([k,l]) => (
+              <button key={k} onClick={() => setSplitMode(k)} style={{ flex:1, padding:"7px 5px", borderRadius:8, border:`1px solid ${splitMode===k?C.accent:C.border}`, background:splitMode===k?`${C.accent}18`:"transparent", color:splitMode===k?C.accent:C.muted, fontSize:11, fontWeight:splitMode===k?700:400, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
             ))}
           </div>
 
           <RangeRow
-            label={
-              splitMode === "pos"
-                ? "Ralentissement progressif"
-                : "Accélération progressive"
-            }
-            tip={
-              splitMode === "pos"
-                ? "% de différence entre le début et la fin de course (tu ralentis progressivement)."
-                : "% de différence entre le début et la fin de course (tu accélères progressivement)."
-            }
-            val={driftPct}
-            set={setDriftPct}
-            min={0}
-            max={20}
-            unit="%"
-          />
+            label={splitMode === "pos" ? "Ralentissement progressif" : "Accélération progressive"}
+            tip={splitMode === "pos" ? "% de ralentissement entre le premier et le dernier km." : "% d'accélération entre le premier et le dernier km."}
+            val={driftPct} set={setDriftPct} min={0} max={20} unit="%" />
 
           <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap" }}>
-            <div style={S.metric(C.accent)}>
-              <div
-                style={{
-                  ...S.mv,
-                  color: C.accent,
-                  fontSize: 19,
-                }}
-              >
-                {fmtTime(totalTime)}
-              </div>
-
-              <div style={S.ml}>Temps estimé</div>
-            </div>
-
-            <div style={S.metric(C.info)}>
-              <div
-                style={{
-                  ...S.mv,
-                  color: C.info,
-                  fontSize: 17,
-                }}
-              >
-                {pace}
-              </div>
-
-              <div style={S.ml}>Allure moy.</div>
-            </div>
+            <div style={S.metric(C.accent)}><div style={{ ...S.mv, color: C.accent, fontSize: 19 }}>{fmtTime(totalTime)}</div><div style={S.ml}>Temps estimé</div></div>
+            <div style={S.metric(C.info)}><div style={{ ...S.mv, color: C.info, fontSize: 17 }}>{kmhToPace(KM / (totalTime / 3600))}</div><div style={S.ml}>Allure moy.</div></div>
           </div>
 
-          {wallKm && (
-            <div
-              style={{
-                ...S.insight(C.danger),
-                marginTop: "0.75rem",
-              }}
-            >
-              ⚠️ Risque de mur vers le km {wallKm}. Partez 5 à 10 s/km plus lentement.
-            </div>
-          )}
-
-          <div style={S.coachBox}>
-            🧠 <strong>Coach :</strong> {coachMsg}
-          </div>
-
-          <div
-            style={{
-              marginTop: "0.875rem",
-              display: "flex",
-              gap: 8,
-            }}
-          >
-            <button style={S.btn()} onClick={handleExportPDF}>
-              📄 Exporter PDF
-            </button>
+          {wallKm && <div style={{ ...S.insight(C.danger), marginTop: "0.75rem" }}>⚠️ Risque de mur vers le km {wallKm}. Partez 5 à 10 s/km plus lentement.</div>}
+          <div style={S.coachBox}>🧠 <strong>Coach :</strong> {coachMsg}</div>
+          <div style={{ marginTop: "0.875rem", display: "flex", gap: 8 }}>
+            <button style={S.btn()} onClick={handleExportPDF}>📄 Exporter PDF</button>
           </div>
         </div>
 
         <div style={S.card}>
           <h2 style={S.h2}>Splits prévisionnels</h2>
-
           {splits.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "7px 0",
-                borderBottom: `1px solid ${C.border}`,
-                fontSize: 13,
-              }}
-            >
-              <span style={{ color: C.muted, minWidth: 70 }}>
-                km {s.km % 1 === 0 ? s.km : s.km.toFixed(1)}
-              </span>
-
-              <span
-                style={{
-                  fontFamily: "monospace",
-                  fontWeight: 700,
-                }}
-              >
-                {fmtTime(s.time)}
-              </span>
-
-              <span style={S.badge(C.muted)}>
-                {s.pace}/km
-              </span>
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
+              <span style={{ color: C.muted, minWidth: 70 }}>km {s.km % 1 === 0 ? s.km : s.km.toFixed(1)}</span>
+              <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{fmtTime(s.time)}</span>
+              <span style={S.badge(C.muted)}>{s.pace}/km</span>
             </div>
           ))}
-
           <div style={S.divider} />
-
           <h2 style={S.h2}>Références</h2>
-
           {refs.map(([l, v]) => (
-            <div
-              key={l}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 12,
-                padding: "4px 0",
-                color: C.muted,
-              }}
-            >
-              <span>{l}</span>
-
-              <span
-                style={{
-                  fontWeight: 600,
-                  color: C.text,
-                }}
-              >
-                {v}
-              </span>
+            <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", color: C.muted }}>
+              <span>{l}</span><span style={{ fontWeight: 600, color: C.text }}>{v}</span>
             </div>
           ))}
         </div>
@@ -1333,33 +1119,19 @@ const TABS = [
   { id: "running",   label: "Course",    icon: "🏃" },
   { id: "strategy",  label: "Stratégie", icon: "📊" },
   { id: "nutrition", label: "Nutrition", icon: "🍬" },
-  { id: "dashboard", label: "Bord",      icon: "📈" },
   { id: "metrics",   label: "Métriques", icon: "🔬" },
 ];
 
 export default function App() {
   const [tab, setTab] = useState("converter");
-  const [records, setRecords] = useState(() => lsLoad().records || []);
-
-  useEffect(() => { lsSave({ records }); }, [records]);
-
-  const handleSave = useCallback((r) => {
-    setRecords(prev => [...prev, r]);
-    setTab("dashboard");
-  }, []);
-
-  const handleClear = useCallback(() => {
-    if (window.confirm("Effacer tout l'historique des sessions ?")) setRecords([]);
-  }, []);
 
   const renderPage = () => {
     switch (tab) {
       case "converter":  return <PaceConverter />;
-      case "hybrid":     return <RaceSimulator onSave={handleSave} />;
+      case "hybrid":     return <RaceSimulator />;
       case "running":    return <RunSimulator />;
       case "strategy":   return <StrategyAnalyzer />;
       case "nutrition":  return <NutritionCalc />;
-      case "dashboard":  return <Dashboard records={records} onClear={handleClear} />;
       case "metrics":    return <PerformanceMetrics />;
       default:           return null;
     }
