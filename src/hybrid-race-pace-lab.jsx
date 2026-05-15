@@ -434,15 +434,40 @@ function RaceSimulator() {
   const [format, setFormat] = useState("solo");
   const [transition, setTransition] = useState(15);
   const [fatigue, setFatigue] = useState(1.08);
-  const [times, setTimes] = useState(() => Object.fromEntries(STATIONS.map(s => [s.id, s.defaultTime.mRx])));
 
+  const [times, setTimes] = useState(() =>
+    Object.fromEntries(STATIONS.map(s => [s.id, s.defaultTime?.mRx ?? 60]))
+  );
+
+  const isMixed = cat.startsWith("mx");
+
+  // Force format constraints for mixed categories
   useEffect(() => {
-    setTimes(Object.fromEntries(STATIONS.map(s => [s.id, s.defaultTime[cat]])));
+    if (isMixed && format === "solo") {
+      setFormat("doubles");
+    }
+  }, [cat]);
+
+  // Reset station times when category changes
+  useEffect(() => {
+    setTimes(
+      Object.fromEntries(
+        STATIONS.map(s => [
+          s.id,
+          s.defaultTime?.[cat] ??
+          s.defaultTime?.mRx ??
+          60
+        ])
+      )
+    );
   }, [cat]);
 
   const applyPreset = (key) => {
     const p = PRESETS[key];
-    setPace(p.pace); setFatigue(p.fat); setCat(p.cat); setTransition(p.trans);
+    setPace(p.pace);
+    setFatigue(p.fat);
+    setCat(p.cat);
+    setTransition(p.trans);
     setTimes(p.times);
   };
 
@@ -458,129 +483,183 @@ function RaceSimulator() {
     { v: trTime, c: C.warning, l: "Transitions" },
   ];
 
-  const worstStation = STATIONS.reduce((a, b) => times[b.id] > times[a.id] ? b : a);
-  const runPct = (runTime / total * 100).toFixed(0);
-  const trPct = (trTime / total * 100).toFixed(0);
+  const worstStation = STATIONS.reduce((a, b) =>
+    times[b.id] > times[a.id] ? b : a
+  );
 
-  // Coach message
+  const runPct = ((runTime / total) * 100).toFixed(0);
+  const trPct = ((trTime / total) * 100).toFixed(0);
+
   const coachMsg = useMemo(() => {
     const totalMin = total / 60;
     if (totalMin < 75) return "🔥 Niveau élite. Résultat très compétitif en catégorie RX.";
-    if (totalMin < 90) return "✅ Excellent résultat. Tu vises le top 10-15% de ta catégorie.";
-    if (totalMin < 105) return "🟡 Bon niveau intermédiaire. Quelques marges de progression identifiées.";
-    if (totalMin < 120) return "🟢 Bon finish pour un premier format hybride. Pacing conservateur efficace.";
-    return "🎯 Objectif finish accompli. Travaille les stations pour réduire de 10-15 min au prochain départ.";
+    if (totalMin < 90) return "✅ Excellent résultat. Tu vises le top 10-15%.";
+    if (totalMin < 105) return "🟡 Bon niveau intermédiaire. Progression possible.";
+    if (totalMin < 120) return "🟢 Bon finish pour un format hybride.";
+    return "🎯 Finish OK. Priorité : stations.";
   }, [total]);
 
-  // Race insight
   const force =
-  kmh >= 13
-    ? "🔥 Excellent profil coureur — la course est un vrai point fort."
-    : kmh >= 11.5
-      ? "💪 Bon profil coureur — la course ne t'handicape pas."
-      : kmh >= 10
-        ? "⚠️ Profil équilibré mais la course peut devenir limitante."
-        : "🏃 Gros axe de progression en course à pied.";
-  const risk = fatigue > 1.15 ? `Fatigue progressive élevée — risque de ralentissement fort après le km 5.` : trTime > 150 ? `Transitions longues (${fmtTime(trTime)} cumulé) — marge facile à gagner.` : `Station ${worstStation.name} la plus lourde — prépare-la spécifiquement.`;
-  const optim = trTime > 150
-    ? `Réduire les transitions à 10 s = économie de ${fmtTime(trTime - 80)} sur l'ensemble.`
-    : `Améliorer ${worstStation.name} de 20 % = −${fmtTime(times[worstStation.id] * 0.2)} sur le chrono.`;
+    kmh >= 13
+      ? "🔥 Excellent profil coureur."
+      : kmh >= 11.5
+        ? "💪 Bon profil coureur."
+        : kmh >= 10
+          ? "⚠️ Profil équilibré."
+          : "🏃 Axe majeur : course à pied.";
+
+  const risk =
+    fatigue > 1.15
+      ? `Fatigue élevée — ralentissement probable fin de course.`
+      : trTime > 150
+        ? `Transitions lentes — gain facile.`
+        : `Station ${worstStation.name} prioritaire.`;
+
+  const optim =
+    trTime > 150
+      ? `Transitions à 10s = gros gain chrono.`
+      : `Améliorer ${worstStation.name} de 20%.`;
 
   const handleExportPDF = () => {
-    exportPDF(`Plan de course — ${CATS[cat]} — ${format} — ${fmtTime(total)}`, [
-      ["Résumé", [
-        { Segment: "Course (8 × 1 km)", Durée: fmtTime(runTime), "%": `${runPct}%` },
-        { Segment: "Stations (× 8)", Durée: fmtTime(stTime), "%": `${(stTime / total * 100).toFixed(0)}%` },
-        { Segment: "Transitions (× 8)", Durée: fmtTime(trTime), "%": `${trPct}%` },
-        { Segment: "TOTAL", Durée: fmtTime(total), "%": "100%" },
-      ]],
-      ["Détail stations", STATIONS.map(s => ({
-        Station: s.name, Distance: s.dist,
-        Poids: s.weights[cat] || "—",
-        "Temps saisi": fmtMmSs(times[s.id]),
-        "Avec fatigue": fmtMmSs(Math.round(times[s.id] * fatigue)),
-      }))],
-      ["Analyse coach", [
-        { Axe: "💪 Force", Analyse: force },
-        { Axe: "⚠️ Risque", Analyse: risk },
-        { Axe: "🎯 Optimisation", Analyse: optim },
-        { Axe: "🧠 Conseil global", Analyse: coachMsg },
-      ]],
-    ]);
+    exportPDF(
+      `Plan de course — ${cat} — ${format} — ${fmtTime(total)}`,
+      [
+        ["Résumé", [
+          { Segment: "Course (8 km)", Durée: fmtTime(runTime), "%": `${runPct}%` },
+          { Segment: "Stations", Durée: fmtTime(stTime), "%": `${((stTime / total) * 100).toFixed(0)}%` },
+          { Segment: "Transitions", Durée: fmtTime(trTime), "%": `${trPct}%` },
+          { Segment: "TOTAL", Durée: fmtTime(total), "%": "100%" },
+        ]],
+        ["Stations", STATIONS.map(s => ({
+          Station: s.name,
+          Distance: s.dist,
+          Cible: s.targets?.[cat] ?? s.targets?.mRx ?? "—",
+          "Temps saisi": fmtMmSs(times[s.id]),
+          "Avec fatigue": fmtMmSs(Math.round(times[s.id] * fatigue)),
+        }))],
+        ["Analyse coach", [
+          { Axe: "Force", Analyse: force },
+          { Axe: "Risque", Analyse: risk },
+          { Axe: "Optimisation", Analyse: optim },
+          { Axe: "Global", Analyse: coachMsg },
+        ]],
+      ]
+    );
   };
 
   return (
     <div>
-      <SectionHeader icon="🏁" title="Simulateur Course Hybride" sub="Format type endurance fonctionnelle — 8 km course + 8 stations" />
+      <SectionHeader
+        icon="🏁"
+        title="Simulateur Course Hybride"
+        sub="8 km course + 8 stations (format HYROX)"
+      />
 
       {/* Presets */}
       <div style={S.card}>
         <h2 style={S.h2}>⚡ Scénarios rapides</h2>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {Object.entries(PRESETS).map(([k, p]) => (
-            <button key={k} onClick={() => applyPreset(k)} style={{ ...S.btn(), fontSize: 11, padding: "7px 12px" }}>{p.label}</button>
+            <button
+              key={k}
+              onClick={() => applyPreset(k)}
+              style={{ ...S.btn(), fontSize: 11, padding: "7px 12px" }}
+            >
+              {p.label}
+            </button>
           ))}
         </div>
       </div>
 
       {/* Config */}
       <div style={S.card}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "0.875rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem" }}>
+          
           <div>
-            <label style={S.label}><Tip text="RX (Pro) = poids et distances compétition. Scaled (Open) = poids réduits, adapté aux débutants. Mixte = équipe homme + femme.">Catégorie</Tip></label>
-            <select style={S.input} value={cat} onChange={e => setCat(e.target.value)}>
-              <option value="mRx">Homme RX (Pro)</option>
-              <option value="fRx">Femme RX (Pro)</option>
-              <option value="mSc">Homme Scaled (Open)</option>
-              <option value="fSc">Femme Scaled (Open)</option>
-              <option value="mx">Mixte (Pro)</option>
+            <label style={S.label}>Catégorie</label>
+            <select
+              style={S.input}
+              value={cat}
+              onChange={e => setCat(e.target.value)}
+            >
+              <option value="mRx">Homme RX</option>
+              <option value="fRx">Femme RX</option>
+              <option value="mSc">Homme Scaled</option>
+              <option value="fSc">Femme Scaled</option>
+              <option value="mxRx">Mixte RX</option>
+              <option value="mxSc">Mixte Scaled</option>
             </select>
           </div>
+
           <div>
             <label style={S.label}>Format</label>
-            <select style={S.input} value={format} onChange={e => setFormat(e.target.value)}>
-              <option value="solo">Solo</option>
+            <select
+              style={S.input}
+              value={format}
+              onChange={e => setFormat(e.target.value)}
+            >
+              <option value="solo" disabled={isMixed}>Solo</option>
               <option value="doubles">Doubles</option>
               <option value="relay">Relais</option>
             </select>
           </div>
+
           <div>
             <label style={S.label}>Allure course</label>
-            <input style={S.input} value={pace} onChange={e => setPace(e.target.value)} placeholder="5:30" />
+            <input
+              style={S.input}
+              value={pace}
+              onChange={e => setPace(e.target.value)}
+              placeholder="5:30"
+            />
           </div>
-          <div>
-            <MmSsInput label={<Tip text="Durée de déplacement entre fin de course et début de station (hors effort). Vise < 15 s.">Transition</Tip>}
-              value={transition} onChange={setTransition} />
-          </div>
+
+          <MmSsInput
+            label="Transition"
+            value={transition}
+            onChange={setTransition}
+          />
         </div>
+
         <RangeRow
-          label="Multiplicateur de fatigue"
-          tip="Estime la perte de performance progressive au fil des stations. 1.00 = aucune fatigue. 1.20 = dégradation forte de 20 % en fin de course."
-          val={fatigue} set={setFatigue} min={1} max={1.3} step={0.01}
-          unit={` × (−${((fatigue - 1) * 100).toFixed(0)}% perf. fin de course)`}
+          label="Fatigue"
+          val={fatigue}
+          set={setFatigue}
+          min={1}
+          max={1.3}
+          step={0.01}
+          unit={` ×`}
         />
       </div>
 
       {/* Stations */}
       <div style={S.card}>
-        <h2 style={S.h2}>Temps par station</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "0.625rem" }}>
+        <h2 style={S.h2}>Stations HYROX</h2>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "0.6rem" }}>
           {STATIONS.map((s, i) => {
-            const w = s.weights[cat];
+            const target = s.targets?.[cat] ?? s.targets?.mRx ?? "—";
+
             return (
-              <div key={s.id} style={{ background: C.surface2, borderRadius: 9, padding: "0.75rem", borderLeft: `3px solid ${ST_COLORS[i]}` }}>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-                  <Tip text={s.tip}><span style={{ fontWeight: 600 }}>{s.icon} {s.name}</span></Tip>
-                  {w && w !== "—" && <span style={S.badge(ST_COLORS[i])}>{w}</span>}
+              <div key={s.id} style={{ background: C.surface2, padding: 12, borderRadius: 10 }}>
+                
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  {s.icon} {s.name}
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <MmSsInput value={times[s.id]}
-                    onChange={v => setTimes(prev => ({ ...prev, [s.id]: v }))}
-                    style={{ flex: 1, padding: "6px 10px", fontSize: 13 }} />
-                  <div style={{ textAlign: "right", minWidth: 54 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: ST_COLORS[i] }}>{fmtMmSs(Math.round(times[s.id] * fatigue))}</div>
-                    <div style={{ fontSize: 9, color: C.muted }}>avec fatigue</div>
-                  </div>
+
+                <div style={{ fontSize: 12, marginTop: 4 }}>
+                  🎯 {target}
+                </div>
+
+                <MmSsInput
+                  value={times[s.id]}
+                  onChange={v =>
+                    setTimes(prev => ({ ...prev, [s.id]: v }))
+                  }
+                />
+
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  avec fatigue : {fmtMmSs(Math.round(times[s.id] * fatigue))}
                 </div>
               </div>
             );
@@ -588,45 +667,25 @@ function RaceSimulator() {
         </div>
       </div>
 
-      {/* Results */}
+      {/* Résultats */}
       <div style={S.grid2}>
         <div style={S.card}>
-          <h2 style={S.h2}>Résultat estimé</h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
-            <Donut segs={donutSegs} size={130} />
-            <div style={{ flex: 1 }}>
-              {donutSegs.map((seg, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${C.border}`, fontSize: 12 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5, color: C.muted }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 2, background: seg.c, display: "inline-block" }} />{seg.l}
-                  </span>
-                  <span style={{ fontWeight: 700, color: seg.c }}>{fmtTime(seg.v)}</span>
-                </div>
-              ))}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 14 }}>
-                <span style={{ fontWeight: 700 }}>Total</span>
-                <span style={{ fontWeight: 800, color: C.accent, fontFamily: "monospace", fontSize: 17 }}>{fmtTime(total)}</span>
-              </div>
-            </div>
+          <h2 style={S.h2}>Résultat</h2>
+
+          <Donut segs={donutSegs} size={130} />
+
+          <div style={S.coachBox}>
+            🧠 {coachMsg}
           </div>
-          <div style={S.coachBox}>🧠 <strong>Coach :</strong> {coachMsg}</div>
-          <div style={{ display: "flex", gap: 8, marginTop: "0.75rem", flexWrap: "wrap" }}>
-            <button style={S.btn()} onClick={handleExportPDF}>📄 Exporter le plan de course (PDF)</button>
-          </div>
+
+          <button style={S.btn()} onClick={handleExportPDF}>
+            📄 Export PDF
+          </button>
         </div>
 
         <div style={S.card}>
-          <h2 style={S.h2}>🎯 Race Insight</h2>
+          <h2 style={S.h2}>Insight</h2>
           <RaceInsight force={force} risk={risk} optim={optim} />
-        </div>
-      </div>
-
-      {/* Fatigue curve */}
-      <div style={S.card}>
-        <h2 style={S.h2}>📉 Courbe de fatigue simulée</h2>
-        <FatigueCurve fatigue={fatigue} stationTimes={STATIONS.map(s => times[s.id])} runPace={pace} />
-        <div style={{ ...S.insight(C.muted), marginTop: "0.75rem" }}>
-          Chaque station (bande colorée) accélère la dégradation de performance. Multiplicateur actuel : <strong>{fatigue.toFixed(2)}×</strong>.
         </div>
       </div>
     </div>
