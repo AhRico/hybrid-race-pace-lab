@@ -1345,6 +1345,7 @@ function CoachModal({ onClose }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function CoachDirectory() {
   const [showCoach, setShowCoach] = useState(false);
+  const cookieAccepted = !!localStorage.getItem("hrpl_ck");
   return (
     <div>
       <SectionHeader icon="🎓" title="Annuaire des Coachs" sub="Des experts hybride à ta disposition" />
@@ -1391,13 +1392,18 @@ function CoachDirectory() {
             <p style={{ fontSize: 13, color: C.muted, margin: "0 0 1rem", lineHeight: 1.6 }}>
               Rejoins l'annuaire et mets-toi en avant auprès d'une communauté d'athlètes hybrides motivés. Des places limitées sont disponibles pour les coachs pionniers.
             </p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
               <button
-                onClick={() => setShowCoach(true)}
-                style={{ ...S.btn("p"), background: C.purple, color: "#fff" }}
+                onClick={() => cookieAccepted && setShowCoach(true)}
+                style={{ ...S.btn("p"), background: cookieAccepted ? C.purple : C.surface3, color: cookieAccepted ? "#fff" : C.muted, cursor: cookieAccepted ? "pointer" : "not-allowed", opacity: cookieAccepted ? 1 : 0.6 }}
               >
                 📩 Manifester mon intérêt
               </button>
+              {!cookieAccepted && (
+                <span style={{ fontSize: 11, color: C.warning }}>
+                  ⚠️ Accepte les cookies pour continuer
+                </span>
+              )}
             </div>
           </div>
         </div>
