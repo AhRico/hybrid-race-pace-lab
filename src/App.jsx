@@ -411,7 +411,7 @@ function CookieBanner() {
   return (
     <div style={{ position: "fixed", bottom: 74, left: 10, right: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "0.875rem 1rem", zIndex: 300, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", boxShadow: "0 8px 32px #000a" }}>
       <span style={{ flex: 1, fontSize: 12, color: C.muted, minWidth: 200 }}>
-        🍪 Cette app utilise le <strong style={{ color: C.text }}>localStorage</strong> pour sauvegarder tes préférences (aucune donnée envoyée à nos serveurs). Si tu choisis de laisser un avis, celui-ci est transmis à <strong style={{ color: C.text }}>Formspree</strong>, un service tiers d'envoi de formulaires.
+        🍪 Cette app utilise le <strong style={{ color: C.text }}>localStorage</strong> pour sauvegarder tes préférences (aucune donnée envoyée à nos serveurs). Si tu laisses un avis ou manifestes ton intérêt en tant que coach, ces données sont transmises à <strong style={{ color: C.text }}>Formspree</strong>, un service tiers sécurisé.
       </span>
       <div style={{ display: "flex", gap: 8 }}>
         <button style={S.btn("p")} onClick={() => { localStorage.setItem("hrpl_ck", "1"); setOn(false); }}>Accepter</button>
@@ -598,20 +598,24 @@ function RaceSimulator() {
       : `Améliorer ${worstStation.name} de 20%.`;
 
   const handleExportPDF = () => {
+    const catLabel = CATS[cat] ?? cat;
+    const formatLabel = format === "solo" ? "Solo" : format === "doubles" ? "Doubles" : "Relais";
+    const avgKmh = kmh.toFixed(2);
+    const avgPace = kmhToPace(kmh);
     exportPDF(
-      `Plan de course — ${cat} — ${format} — ${fmtTime(total)}`,
+      `Plan de course — ${catLabel} — ${formatLabel} — ${fmtTime(total)}`,
       [
-        ["Résumé", [
-          { Segment: "Course (8 km)", Durée: fmtTime(runTime), "%": `${runPct}%` },
-          { Segment: "Stations", Durée: fmtTime(stTime), "%": `${((stTime / total) * 100).toFixed(0)}%` },
-          { Segment: "Transitions", Durée: fmtTime(trTime), "%": `${trPct}%` },
-          { Segment: "TOTAL", Durée: fmtTime(total), "%": "100%" },
+        ["Résumé course (8 km)", [
+          { Segment: "Course (8 km)", Durée: fmtTime(runTime), "%": `${runPct}%`, "Allure moy.": `${avgPace}/km`, "Vitesse moy.": `${avgKmh} km/h` },
+          { Segment: "Stations", Durée: fmtTime(stTime), "%": `${((stTime / total) * 100).toFixed(0)}%`, "Allure moy.": "—", "Vitesse moy.": "—" },
+          { Segment: "Transitions", Durée: fmtTime(trTime), "%": `${trPct}%`, "Allure moy.": "—", "Vitesse moy.": "—" },
+          { Segment: "TOTAL", Durée: fmtTime(total), "%": "100%", "Allure moy.": "—", "Vitesse moy.": "—" },
         ]],
-        ["Stations", STATIONS.map(s => ({
+        ["Stations fonctionnelles", STATIONS.map(s => ({
           Station: s.name,
-          Distance: s.dist,
-          Cible: s.targets?.[cat] ?? s.targets?.mRx ?? "—",
-          "Temps saisi": fmtMmSs(times[s.id]),
+          Distance: s.dist.replace(" × 8", "").replace("× 8", "").replace("×8", ""),
+          Charge: s.weights?.[cat] ?? "—",
+          "Temps estimé": fmtMmSs(times[s.id]),
           "Avec fatigue": fmtMmSs(Math.round(times[s.id] * fatigue)),
         }))],
         ["Analyse coach", [
@@ -629,7 +633,7 @@ function RaceSimulator() {
       <SectionHeader
         icon="🏁"
         title="Simulateur Course Hybride"
-        sub="8 km course + 8 stations (format HYROX)"
+        sub="8 km course + 8 stations fonctionnelles"
       />
 
       {/* Presets */}
@@ -709,9 +713,31 @@ function RaceSimulator() {
         />
       </div>
 
+      {/* Résultats & Insight — au-dessus des stations */}
+      <div style={S.grid2}>
+        <div style={S.card}>
+          <h2 style={S.h2}>Résultat</h2>
+
+          <Donut segs={donutSegs} size={130} />
+
+          <div style={S.coachBox}>
+            🧠 {coachMsg}
+          </div>
+
+          <button style={S.btn()} onClick={handleExportPDF}>
+            📄 Export PDF
+          </button>
+        </div>
+
+        <div style={S.card}>
+          <h2 style={S.h2}>Insight</h2>
+          <RaceInsight force={force} risk={risk} optim={optim} />
+        </div>
+      </div>
+
       {/* Stations */}
       <div style={S.card}>
-        <h2 style={S.h2}>Stations HYROX</h2>
+        <h2 style={S.h2}>Stations Fonctionnelles</h2>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "0.6rem" }}>
           {STATIONS.map((s, i) => {
@@ -741,28 +767,6 @@ function RaceSimulator() {
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* Résultats */}
-      <div style={S.grid2}>
-        <div style={S.card}>
-          <h2 style={S.h2}>Résultat</h2>
-
-          <Donut segs={donutSegs} size={130} />
-
-          <div style={S.coachBox}>
-            🧠 {coachMsg}
-          </div>
-
-          <button style={S.btn()} onClick={handleExportPDF}>
-            📄 Export PDF
-          </button>
-        </div>
-
-        <div style={S.card}>
-          <h2 style={S.h2}>Insight</h2>
-          <RaceInsight force={force} risk={risk} optim={optim} />
         </div>
       </div>
     </div>
@@ -1254,19 +1258,169 @@ function PerformanceMetrics() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// COACH INTEREST MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+function CoachModal({ onClose }) {
+  const [form, setForm] = useState({ name: "", city: "", speciality: "", contact: "" });
+  const [status, setStatus] = useState("idle");
+
+  const set = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }));
+
+  const submit = async () => {
+    if (!form.name || !form.contact) return;
+    setStatus("sending");
+    try {
+      const res = await fetch("https://formspree.io/f/meenbeyk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ type: "coach", ...form }),
+      });
+      setStatus(res.ok ? "done" : "error");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  const ready = form.name.trim() && form.contact.trim();
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "1.5rem", maxWidth: 380, width: "100%", boxShadow: "0 16px 48px #000c" }}>
+        {status === "done" ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 40, marginBottom: "0.75rem" }}>🎉</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: C.purple, marginBottom: 6 }}>Demande reçue !</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: "1.25rem", lineHeight: 1.5 }}>On te recontacte dès que l'annuaire ouvre. Merci de ta confiance !</div>
+            <button style={S.btn()} onClick={onClose}>Fermer</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h2 style={{ ...S.h2, margin: 0, color: C.purple }}>💼 Rejoindre l'annuaire</h2>
+              <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: "1rem", lineHeight: 1.5 }}>
+              Tes informations sont envoyées via <strong style={{ color: C.text }}>Formspree</strong> (service tiers sécurisé). Elles ne seront utilisées que pour te recontacter au lancement.
+            </div>
+
+            {[
+              { key: "name",       label: "Nom / Prénom *",          placeholder: "Jean Dupont" },
+              { key: "city",       label: "Ville",                    placeholder: "Lyon" },
+              { key: "speciality", label: "Spécialité / niveau coaché", placeholder: "RX, Open, débutants…" },
+              { key: "contact",    label: "Email ou Instagram *",     placeholder: "jean@coach.fr ou @jean_coach" },
+            ].map(f => (
+              <div key={f.key} style={{ marginBottom: "0.75rem" }}>
+                <label style={S.label}>{f.label}</label>
+                <input
+                  style={S.input}
+                  value={form[f.key]}
+                  onChange={set(f.key)}
+                  placeholder={f.placeholder}
+                />
+              </div>
+            ))}
+
+            {status === "error" && (
+              <div style={{ fontSize: 12, color: C.danger, marginBottom: "0.75rem" }}>Une erreur s'est produite. Réessaie.</div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                style={{ ...S.btn("p"), flex: 1, background: C.purple, opacity: !ready || status === "sending" ? 0.5 : 1 }}
+                onClick={submit}
+                disabled={!ready || status === "sending"}
+              >
+                {status === "sending" ? "Envoi…" : "Envoyer"}
+              </button>
+              <button style={S.btn()} onClick={onClose}>Annuler</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COACH DIRECTORY (coming soon)
+// ══════════════════════════════════════════════════════════════════════════════
+function CoachDirectory() {
+  const [showCoach, setShowCoach] = useState(false);
+  return (
+    <div>
+      <SectionHeader icon="🎓" title="Annuaire des Coachs" sub="Des experts hybride à ta disposition" />
+
+      {/* Coming soon hero */}
+      <div style={{ ...S.card, textAlign: "center", padding: "2.5rem 1.5rem", background: `linear-gradient(135deg, ${C.surface} 0%, ${C.surface3} 100%)`, border: `1px solid ${C.accent}30`, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: -40, right: -40, fontSize: 120, opacity: 0.04, lineHeight: 1 }}>🎓</div>
+        <div style={{ fontSize: 48, marginBottom: "0.75rem" }}>🚧</div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: C.accent, margin: "0 0 0.5rem", letterSpacing: "-0.03em" }}>Bientôt disponible</h2>
+        <p style={{ color: C.muted, fontSize: 14, maxWidth: 400, margin: "0 auto 1.5rem", lineHeight: 1.6 }}>
+          L'annuaire des coachs spécialisés en course hybride arrive prochainement. Trouve le coach qui correspond à ton niveau et tes objectifs.
+        </p>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${C.accent}15`, border: `1px solid ${C.accent}40`, borderRadius: 20, padding: "6px 16px", fontSize: 12, color: C.accent, fontWeight: 600 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.accent, display: "inline-block", animation: "pulse 1.5s infinite" }} />
+          Lancement prévu prochainement
+        </div>
+      </div>
+
+      {/* Ce que tu trouveras */}
+      <div style={S.card}>
+        <h2 style={S.h2}>Ce que tu trouveras ici</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
+          {[
+            { icon: "🏅", title: "Coachs certifiés", desc: "Experts course hybride, running et force fonctionnelle." },
+            { icon: "📍", title: "Localisation", desc: "Trouve un coach près de chez toi ou en ligne." },
+            { icon: "📋", title: "Spécialités", desc: "RX, Open, préparation compétition, débutants…" },
+            { icon: "📞", title: "Contact direct", desc: "Accède aux coordonnées et prise de RDV simplifiée." },
+          ].map(f => (
+            <div key={f.title} style={{ background: C.surface2, borderRadius: 10, padding: "1rem" }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>{f.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 4 }}>{f.title}</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA coach */}
+      <div style={{ ...S.card, background: `${C.purple}10`, border: `1px solid ${C.purple}30` }}>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ fontSize: 36 }}>💼</div>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ ...S.h2, color: C.purple, margin: "0 0 0.4rem" }}>Tu es coach ?</h2>
+            <p style={{ fontSize: 13, color: C.muted, margin: "0 0 1rem", lineHeight: 1.6 }}>
+              Rejoins l'annuaire et mets-toi en avant auprès d'une communauté d'athlètes hybrides motivés. Des places limitées sont disponibles pour les coachs pionniers.
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={() => setShowCoach(true)}
+                style={{ ...S.btn("p"), background: C.purple, color: "#fff" }}
+              >
+                📩 Manifester mon intérêt
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      {showCoach && <CoachModal onClose={() => setShowCoach(false)} />}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // TABS & APP
 // ══════════════════════════════════════════════════════════════════════════════
 const TABS = [
-  { id: "converter", label: "Allure",    icon: "⚡" },
   { id: "hybrid",    label: "Hybride",   icon: "🏁" },
   { id: "running",   label: "Course",    icon: "🏃" },
+  { id: "converter", label: "Allure",    icon: "⚡" },
   { id: "strategy",  label: "Stratégie", icon: "📊" },
   { id: "nutrition", label: "Nutrition", icon: "🍬" },
-  { id: "metrics",   label: "Métriques", icon: "🔬" },
+  { id: "coaches",   label: "Coachs",    icon: "🎓" },
 ];
 
 export default function App() {
-  const [tab, setTab] = useState("converter");
+  const [tab, setTab] = useState("hybrid");
   const [showFeedback, setShowFeedback] = useState(false);
 
   const renderPage = () => {
@@ -1276,7 +1430,7 @@ export default function App() {
       case "running":    return <RunSimulator />;
       case "strategy":   return <StrategyAnalyzer />;
       case "nutrition":  return <NutritionCalc />;
-      case "metrics":    return <PerformanceMetrics />;
+      case "coaches":    return <CoachDirectory />;
       default:           return null;
     }
   };
