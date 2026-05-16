@@ -43,41 +43,41 @@ const lsSave = (d) => { try { localStorage.setItem(LS, JSON.stringify(d)); } cat
 
 // ─── Station data (poids standards compétition hybride officielle) ────────────
 // mRx = Homme Pro · fRx = Femme Pro · mSc = Homme Open · fSc = Femme Open
-// mxRx = Mixte Pro (RX) · mxSc = Mixte Scaled (Open)
-// Règle : Open Homme = Pro Femme (mSc = fRx)
+// mxRx = Mixte RX (Pro) · mxSc = Mixte Scaled (Open)
+// Règle : Open Homme = Pro Femme (mSc = fRx) · Mixte = poids homme de la catégorie
 const STATIONS = [
   { id: "skierg",   name: "SkiErg",            icon: "🎿", dist: "1 000 m",
     weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mxRx: "—", mxSc: "—" },
     defaultTime: { mRx: 270, fRx: 300, mSc: 300, fSc: 275, mxRx: 285, mxSc: 288 },
-    tip: "Ergomètre ski 1 000 m. Pas de charge — effort cardio-respiratoire intense." },
-  { id: "sledpush", name: "Sled Push",          icon: "🏋️", dist: "50 m × 8",
-    weights: { mRx: "202 kg", fRx: "152 kg", mSc: "152 kg", fSc: "102 kg", mxRx: "202 kg / 152 kg", mxSc: "152 kg / 102 kg" },
-    defaultTime: { mRx: 260, fRx: 225, mSc: 225, fSc: 200, mxRx: 243, mxSc: 213 },
-    tip: "Pousser le traîneau 50 m. Pro H : 202 kg · Pro F & Open H : 152 kg · Open F : 102 kg." },
-  { id: "sledpull", name: "Sled Pull",          icon: "💪", dist: "50 m × 8",
-    weights: { mRx: "153 kg", fRx: "152 kg", mSc: "152 kg", fSc: "78 kg", mxRx: "153 kg / 152 kg", mxSc: "152 kg / 78 kg" },
-    defaultTime: { mRx: 215, fRx: 210, mSc: 210, fSc: 175, mxRx: 213, mxSc: 193 },
-    tip: "Tirer le traîneau à la corde 50 m. Pro H : 153 kg · Pro F & Open H : 152 kg · Open F : 78 kg." },
+    tip: "Ergomètre ski 1 000 m. Pas de charge." },
+  { id: "sledpush", name: "Sled Push",          icon: "🏋️", dist: "50 m",
+    weights: { mRx: "202 kg", fRx: "152 kg", mSc: "152 kg", fSc: "102 kg", mxRx: "202 kg", mxSc: "152 kg" },
+    defaultTime: { mRx: 260, fRx: 225, mSc: 225, fSc: 200, mxRx: 250, mxSc: 218 },
+    tip: "Pousser le traîneau 50 m. Pro H & Mixte Pro : 202 kg · Pro F / Open H / Mixte Open : 152 kg · Open F : 102 kg." },
+  { id: "sledpull", name: "Sled Pull",          icon: "💪", dist: "50 m",
+    weights: { mRx: "153 kg", fRx: "152 kg", mSc: "152 kg", fSc: "78 kg", mxRx: "153 kg", mxSc: "152 kg" },
+    defaultTime: { mRx: 215, fRx: 210, mSc: 210, fSc: 175, mxRx: 214, mxSc: 205 },
+    tip: "Tirer le traîneau à la corde 50 m. Pro H & Mixte Pro : 153 kg · Pro F / Open H / Mixte Open : 152 kg · Open F : 78 kg." },
   { id: "burpee",   name: "Burpee Broad Jumps", icon: "🏃", dist: "80 m",
     weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mxRx: "—", mxSc: "—" },
     defaultTime: { mRx: 240, fRx: 220, mSc: 220, fSc: 190, mxRx: 230, mxSc: 205 },
-    tip: "Burpees avec saut en longueur sur 80 m. Pas de charge — station très éprouvante cardio." },
+    tip: "Burpees avec saut en longueur sur 80 m. Pas de charge." },
   { id: "rowing",   name: "Rowing",             icon: "🚣", dist: "1 000 m",
     weights: { mRx: "—", fRx: "—", mSc: "—", fSc: "—", mxRx: "—", mxSc: "—" },
     defaultTime: { mRx: 270, fRx: 290, mSc: 290, fSc: 268, mxRx: 280, mxSc: 279 },
-    tip: "Ergomètre à rames 1 000 m. Pas de charge — technique essentielle pour maintenir l'efficacité." },
+    tip: "Ergomètre à rames 1 000 m. Pas de charge." },
   { id: "farmer",   name: "Farmer Carry",       icon: "🧳", dist: "200 m",
-    weights: { mRx: "2 × 32 kg", fRx: "2 × 24 kg", mSc: "2 × 24 kg", fSc: "2 × 16 kg", mxRx: "2 × 32 kg / 2 × 24 kg", mxSc: "2 × 24 kg / 2 × 16 kg" },
-    defaultTime: { mRx: 195, fRx: 175, mSc: 175, fSc: 155, mxRx: 185, mxSc: 165 },
-    tip: "Farmer Carry 200 m kettlebells. Pro H : 2×32 kg · Pro F & Open H : 2×24 kg · Open F : 2×16 kg." },
+    weights: { mRx: "2 × 32 kg", fRx: "2 × 24 kg", mSc: "2 × 24 kg", fSc: "2 × 16 kg", mxRx: "2 × 32 kg", mxSc: "2 × 24 kg" },
+    defaultTime: { mRx: 195, fRx: 175, mSc: 175, fSc: 155, mxRx: 190, mxSc: 170 },
+    tip: "Farmer Carry 200 m kettlebells. Pro H & Mixte Pro : 2×32 kg · Pro F / Open H / Mixte Open : 2×24 kg · Open F : 2×16 kg." },
   { id: "sandbag",  name: "Sandbag Lunges",     icon: "⚡", dist: "100 m",
-    weights: { mRx: "30 kg", fRx: "20 kg", mSc: "20 kg", fSc: "10 kg", mxRx: "30 kg / 20 kg", mxSc: "20 kg / 10 kg" },
-    defaultTime: { mRx: 290, fRx: 255, mSc: 255, fSc: 225, mxRx: 273, mxSc: 240 },
-    tip: "Fentes avec sac de sable 100 m. Pro H : 30 kg · Pro F & Open H : 20 kg · Open F : 10 kg." },
+    weights: { mRx: "30 kg", fRx: "20 kg", mSc: "20 kg", fSc: "10 kg", mxRx: "30 kg", mxSc: "20 kg" },
+    defaultTime: { mRx: 290, fRx: 255, mSc: 255, fSc: 225, mxRx: 280, mxSc: 248 },
+    tip: "Fentes avec sac de sable 100 m. Pro H & Mixte Pro : 30 kg · Pro F / Open H / Mixte Open : 20 kg · Open F : 10 kg." },
   { id: "wallball", name: "Wall Balls",         icon: "🏀", dist: "100 reps",
-    weights: { mRx: "9 kg / cible 9ft", fRx: "6 kg / cible 9ft", mSc: "6 kg / cible 7,5ft", fSc: "4 kg / cible 7,5ft", mxRx: "9 kg + 6 kg / cible 9ft", mxSc: "6 kg + 4 kg / cible 7,5ft" },
-    defaultTime: { mRx: 255, fRx: 230, mSc: 230, fSc: 205, mxRx: 243, mxSc: 218 },
-    tip: "100 lancers medball. Pro H : 9 kg · Pro F & Open H : 6 kg · Open F : 4 kg. Pro : cible 9ft · Open : cible 7,5ft." },
+    weights: { mRx: "9 kg", fRx: "6 kg", mSc: "6 kg", fSc: "4 kg", mxRx: "9 kg", mxSc: "6 kg" },
+    defaultTime: { mRx: 255, fRx: 230, mSc: 230, fSc: 205, mxRx: 248, mxSc: 222 },
+    tip: "100 lancers medball. Pro H & Mixte Pro : 9 kg · Pro F / Open H / Mixte Open : 6 kg · Open F : 4 kg." },
 ];
 const ST_COLORS = ["#4DA6FF","#00E5A0","#FFB84D","#FF5C6A","#C084FC","#F472B6","#34D399","#FBBF24"];
 const CATS = {
